@@ -15,7 +15,7 @@ Pull Request 必須包含：
 - 已執行的測試與結果。
 - 破壞性變更或已知限制；若無，請明確寫「無」。
 
-合併前必須通過 `Validate`，並使用 Squash and Merge。`master` 應啟用分支保護：要求 Pull Request、至少 1 位核准者、必要狀態檢查 `Validate static prototype`、禁止強制推送與刪除分支。
+合併前必須通過 `Validate`，並使用 Squash and Merge。`master` 應啟用分支保護：要求 Pull Request，但不要求核准者；同時要求必要狀態檢查 `Validate static prototype`，並禁止強制推送與刪除分支。
 
 ## 安全
 
