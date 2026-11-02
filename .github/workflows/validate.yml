@@ -1,0 +1,37 @@
+name: Validate
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches-ignore: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  static-prototype:
+    name: Validate static prototype
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate JavaScript syntax
+        run: node --check dist/app.js && node --check dist/service-worker.js
+
+      - name: Validate manifest and required assets
+        run: |
+          python3 -m json.tool dist/manifest.webmanifest >/dev/null
+          test -f dist/index.html
+          test -f dist/styles.css
+          test -f dist/icons/app-icon-192.png
+          test -f dist/icons/app-icon-512.png
+          test -f dist/icons/apple-touch-icon.png
+
+      - name: Check tracked files for common secret formats
+        run: |
+          if git grep -nE '(BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|SUPABASE_SERVICE_ROLE_KEY[[:space:]]*=|API_KEY[[:space:]]*=[[:space:]]*[^<])' -- . ':(exclude).github/workflows/validate.yml'; then
+            echo '疑似敏感資料，請移除後再提交。'
+            exit 1
+          fi

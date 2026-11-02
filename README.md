@@ -24,3 +24,22 @@ python3 -m http.server 4173 --directory dist
 
 所有修改只存在記憶體，重新整理後會還原。
 
+## 手機開啟與加入主畫面
+
+正式網址部署至 GitHub Pages 後，可直接用手機瀏覽器開啟：
+
+- iPhone／iPad：使用 Safari 開啟，點選「分享」→「加入主畫面」。
+- Android：使用 Chrome 開啟，點選選單→「加到主畫面」或「安裝應用程式」。
+
+主畫面捷徑會使用 `dist/icons/apple-touch-icon.png` 或 Web App Manifest 內的冬季村莊插圖。此儲存庫是可公開瀏覽的前端原型，請勿加入 API 金鑰、私人憑證或真實敏感旅遊資料。
+
+## GitHub 開發與上傳規則
+
+所有變更必須遵守 [AGENTS.md](AGENTS.md) 與 [CONTRIBUTING.md](CONTRIBUTING.md)：
+
+1. 從 `master` 建立 `feature/`、`fix/` 或 `refactor/` 分支。
+2. 使用 Conventional Commits。
+3. 推送分支後建立 Pull Request，不得直接推送或合併至 `master`。
+4. Pull Request 必須通過 `Validate` 檢查後才可使用 Squash and Merge。
+5. 合併至 `master` 後，由 `Deploy GitHub Pages` 自動發佈。
+
