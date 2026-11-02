@@ -111,28 +111,7 @@ function pageHeading(eyebrow, title, action = "") {
 }
 
 function heroIllustration() {
-  return `<svg class="hero-illustration" viewBox="0 0 900 560" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-    <defs>
-      <linearGradient id="winter-sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#7ea5b5"/><stop offset="1" stop-color="#315f66"/></linearGradient>
-      <linearGradient id="winter-ground" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f5fafc"/><stop offset="1" stop-color="#b9d2dc"/></linearGradient>
-    </defs>
-    <rect width="900" height="560" fill="url(#winter-sky)"/>
-    <circle cx="790" cy="72" r="38" fill="#f6e4af" opacity=".92"/>
-    <g fill="#fff" opacity=".86">${[[52,56,5],[126,112,3],[210,48,4],[292,96,3],[382,43,5],[470,118,4],[548,62,3],[648,104,5],[726,34,3],[836,128,4],[88,202,4],[254,176,3],[612,190,4],[858,212,3]].map(([x,y,r]) => `<circle cx="${x}" cy="${y}" r="${r}"/>`).join("")}</g>
-    <path d="M-40 340 150 142l103 101L397 66l126 151 107-105 310 228v220H-40z" fill="#557b86"/>
-    <path d="m150 142-39 42 39-8 40 8z" fill="#edf5f7" opacity=".94"/>
-    <path d="m397 66-47 59 47-12 46 12z" fill="#edf5f7" opacity=".94"/>
-    <path d="m630 112-43 48 43-10 44 10z" fill="#edf5f7" opacity=".94"/>
-    <path d="M0 330c118-43 229-25 329 12 132 49 283 35 571-38v256H0z" fill="url(#winter-ground)"/>
-    <path d="M0 390c148-61 267-30 380 1 147 40 305 9 520-47v216H0z" fill="#9ebfcb" opacity=".78"/>
-    <g transform="translate(310 98)">
-      <g transform="translate(0 72)"><rect width="90" height="72" y="30" rx="5" fill="#f4dfd2"/><path d="m-9 34 54-42 55 42z" fill="#9e4f47"/><path d="m-1 29 46-37 17 13-31 27z" fill="#fff"/><rect x="16" y="56" width="18" height="23" rx="3" fill="#6c8992"/><rect x="58" y="56" width="17" height="17" rx="3" fill="#f4d889"/></g>
-      <g transform="translate(106 46)"><rect width="104" height="96" y="36" rx="5" fill="#e4c4a6"/><path d="m-10 40 61-48 64 48z" fill="#7f4a42"/><path d="m1 34 50-42 19 14-36 32z" fill="#fff"/><rect x="42" y="74" width="22" height="58" rx="3" fill="#6a858c"/><rect x="15" y="63" width="17" height="18" rx="3" fill="#f4d889"/><rect x="74" y="63" width="17" height="18" rx="3" fill="#f4d889"/></g>
-      <g transform="translate(226 76)"><rect width="86" height="66" y="30" rx="5" fill="#d5ddd6"/><path d="m-8 34 50-39 52 39z" fill="#884941"/><path d="m0 29 42-34 15 12-30 25z" fill="#fff"/><rect x="34" y="58" width="20" height="38" rx="3" fill="#6c8992"/></g>
-      <g transform="translate(326 0)"><rect x="18" y="63" width="74" height="119" rx="5" fill="#f1ead8"/><path d="m10 67 45-66 46 66z" fill="#855047"/><path d="m18 59 37-58 17 24-27 37z" fill="#fff"/><rect x="45" y="96" width="21" height="86" rx="10" fill="#718991"/></g>
-    </g>
-    <path d="M0 455c155-47 284-39 418 4 151 49 302 36 482-17v118H0z" fill="#315f66" opacity=".68"/>
-  </svg>`;
+  return `<img class="hero-illustration" src="assets/hero-winter-pine.jpg" alt="" aria-hidden="true">`;
 }
 
 function homeScreen() {
