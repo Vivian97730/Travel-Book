@@ -7,3 +7,8 @@
 *.pem
 *.key
 dist/icons/app-icon-original.png
+node_modules/
+build/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts

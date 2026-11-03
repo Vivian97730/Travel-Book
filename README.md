@@ -1,6 +1,19 @@
-# Travel Book UI Prototype
+# Travel Book
 
-這是依照專案[頁面與功能規劃](../../docs/頁面功能.md)製作的互動原型，不是正式產品程式。
+本目錄同時保留可供比對的靜態 prototype，以及依照專案[頁面與功能規劃](../../docs/頁面功能.md)逐頁開發的正式 `React + TypeScript + Vite` 程式。
+
+## 正式程式進度
+
+首頁是第一個正式功能切片，目前包含：
+
+- 以台北時區起飛時間計算的即時倒數。
+- 進入首頁時單次請求裝置定位，並透過 Open-Meteo 取得目前天氣。
+- 定位顯示已離開台灣時隱藏出發倒數；拒絕定位、天氣失敗與離線時保留其他首頁內容。
+- 去回程航班、杜拜轉機、總旅行時間與跨日標示。
+- 需先進入編輯模式的小知識新增、修改、移除、取消與儲存流程。
+- 小知識暫存於目前瀏覽器，資料介面已獨立；串接 Supabase 後可替換為全家共享版本。
+
+正式程式尚未取代 GitHub Pages 上的 prototype；其餘四頁會依後續功能切片逐步移植。
 
 ## 頁面
 
@@ -12,7 +25,26 @@
 
 主要卡片使用 `32 px` 大圓角，內層資訊卡使用 `24 px` 圓角；整體採冰雪色盤與雪景背景，卡片本身不顯示右上角星芒裝飾。
 
-## 本機預覽
+## 正式程式本機開發
+
+需要 Node.js 20.19 以上版本與 pnpm。安裝後執行：
+
+```bash
+pnpm install
+pnpm dev
+```
+
+檢查與建置：
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+正式建置會輸出至 `build/`，不會覆蓋 `dist/` 內的 prototype。
+
+## Prototype 本機預覽
 
 在本目錄執行：
 
@@ -22,7 +54,7 @@ python3 -m http.server 4173 --directory dist
 
 再開啟 `http://localhost:4173`。
 
-所有修改只存在記憶體，重新整理後會還原。
+Prototype 的所有修改只存在記憶體，重新整理後會還原。
 
 ## 手機開啟與加入主畫面
 
@@ -40,6 +72,6 @@ python3 -m http.server 4173 --directory dist
 1. 從 `master` 建立 `feature/`、`fix/` 或 `refactor/` 分支。
 2. 使用 Conventional Commits。
 3. 推送分支後建立 Pull Request，不得直接推送或合併至 `master`。
-4. Pull Request 必須通過 `Validate` 檢查後才可使用 Squash and Merge。
+4. `Validate` 檢查提供參考，但不阻擋合併。
 5. 合併至 `master` 後，由 `Deploy GitHub Pages` 自動發佈。
 

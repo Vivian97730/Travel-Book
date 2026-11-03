@@ -1,0 +1,87 @@
+@import "../dist/styles.css";
+
+.brand-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.loading-state {
+  padding: 3rem 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.flight-segment {
+  display: contents;
+}
+
+.section-actions {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.section-actions .primary-button,
+.section-actions .secondary-button {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.8rem;
+}
+
+.inline-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.add-fact-button {
+  margin-top: 1rem;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(20, 38, 44, 0.58);
+}
+
+.react-dialog {
+  position: static;
+  display: block;
+  width: min(100%, 32rem);
+  max-height: calc(100dvh - 2rem);
+  margin: 0;
+  overflow: auto;
+}
+
+.empty-development {
+  display: grid;
+  justify-items: start;
+  gap: 1rem;
+}
+
+.empty-development code {
+  border-radius: 0.35rem;
+  background: var(--paper-deep);
+  padding: 0.1rem 0.35rem;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 640px) {
+  .section-head {
+    align-items: flex-start;
+  }
+
+  .section-actions {
+    flex-direction: column-reverse;
+  }
+}
