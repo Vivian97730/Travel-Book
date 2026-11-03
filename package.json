@@ -7,9 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify:prototype": "node scripts/verify-prototype-baseline.mjs"
   },
   "dependencies": {
+    "@travel-book/contracts": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

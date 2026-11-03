@@ -1,36 +1,4 @@
-export type FactIcon = "globe" | "exchange" | "plug" | "water" | "info";
-
-export interface TravelFact {
-  id: string;
-  icon: FactIcon;
-  title: string;
-  content: string;
-  sortOrder: number;
-}
-
-export interface FlightLeg {
-  airport: string;
-  city: string;
-  time: string;
-  dayOffset?: number;
-}
-
-export interface FlightSummary {
-  direction: "去程" | "回程";
-  duration: string;
-  legs: FlightLeg[];
-}
-
-export interface TripHome {
-  title: string;
-  subtitle: string;
-  dateLabel: string;
-  durationLabel: string;
-  travelerCount: number;
-  version: number;
-  flights: FlightSummary[];
-  facts: TravelFact[];
-}
+export type { FactIcon, FlightLeg, FlightSummary, TravelFact, TripHome } from "@travel-book/contracts";
 
 export interface WeatherSnapshot {
   temperature: number;
