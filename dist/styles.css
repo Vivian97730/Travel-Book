@@ -680,9 +680,13 @@ textarea.field { min-height: 6rem; resize: vertical; }
   input[type="time"].field {
     -webkit-appearance: none;
     appearance: none;
+    box-sizing: border-box;
     inline-size: 100%;
     min-inline-size: 0;
     max-inline-size: 100%;
+    padding-inline: 0.65rem 2.4rem;
+    background-position: right 0.65rem center;
+    background-size: 1rem 1rem;
   }
 
   input[type="date"].field::-webkit-date-and-time-value,
@@ -692,6 +696,13 @@ textarea.field { min-height: 6rem; resize: vertical; }
     min-width: 0;
     text-align: left;
   }
+}
+
+@media (max-width: 23rem) {
+  .dialog-form { padding-inline: 0.85rem; }
+  .date-field-row { gap: 0.55rem; }
+  input[type="date"].field,
+  input[type="time"].field { padding-inline-end: 2rem; }
 }
 
 .toast-region { position: fixed; z-index: 100; inset: 1rem 1rem auto; display: grid; justify-items: center; pointer-events: none; }
