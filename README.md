@@ -31,6 +31,12 @@
 pnpm verify:prototype
 ```
 
+## 階段 1 私人存取
+
+正式前端以 `#/access/<token>` 接收一次性的私人連結片段，保存後立即將網址清理為 `#/itinerary`。後續請求透過 `Authorization: Bearer <token>` 呼叫 `travel-book-api`；前端不直接連接 Database，也不持有 Supabase Secret Key。
+
+本機串接前，複製 `.env.example` 為不提交的 `.env.local`，並將 `VITE_API_BASE_URL` 設為完整 Edge Function 網址。沒有有效私人連結、無法連線或 Edge Function 尚未設定時，正式前端不會載入共享旅程內容。
+
 ## 頁面
 
 - 首頁：以歐洲雪山、積雪小鎮與尖屋頂建築構成冬季主視覺，文字靠下避免遮擋插畫，並包含旅程封面、倒數、天氣狀態、航班與小知識。

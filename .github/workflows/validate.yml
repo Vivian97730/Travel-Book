@@ -37,14 +37,57 @@ jobs:
           pnpm test
           pnpm build
 
+      - name: Verify formal build boundary
+        run: |
+          test -f build/index.html
+          test -d build/assets
+          test ! -e build/src
+          test ! -e build/supabase
+          test ! -e build/tests
+          if grep -R -nE '(SUPABASE_(SERVICE_ROLE_KEY|SECRET_KEYS)|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' build; then
+            echo '正式建置包含不應公開的設定。'
+            exit 1
+          fi
+
       - name: Verify Supabase foundation files
         run: |
+          test -f .env.example
           test -f supabase/config.toml
           test -f supabase/functions/travel-book-api/index.ts
           test -f supabase/functions/travel-book-api/handler.ts
           test -f supabase/migrations/20261103120000_create_private_schema.sql
+          test -f supabase/migrations/20261104010000_create_access_foundation.sql
+          test -f supabase/migrations/20261104011000_bootstrap_primary_trip.sql
           test -f supabase/tests/private_schema_test.sql
+          test -f supabase/tests/access_foundation_test.sql
           test -f supabase/seed.sql
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check Edge Function entrypoint
+        run: deno check supabase/functions/travel-book-api/index.ts
+
+  supabase-database:
+    name: Validate Supabase database
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Run database tests
+        run: supabase test db
 
   static-prototype:
     name: Validate static prototype
@@ -73,7 +116,7 @@ jobs:
 
       - name: Check tracked files for common secret formats
         run: |
-          if git grep -nE '(BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|SUPABASE_SERVICE_ROLE_KEY[[:space:]]*=|API_KEY[[:space:]]*=[[:space:]]*[^<])' -- . ':(exclude).github/workflows/validate.yml'; then
+          if git grep -nE '(BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|SUPABASE_(SERVICE_ROLE_KEY|SECRET_KEYS)[[:space:]]*=|API_KEY[[:space:]]*=[[:space:]]*[^<])' -- . ':(exclude).github/workflows/validate.yml'; then
             echo '疑似敏感資料，請移除後再提交。'
             exit 1
           fi

@@ -1,4 +1,4 @@
-import { isRecord, type ParseResult, type ValidationIssue } from "./validation";
+import { isRecord, type ParseResult, type ValidationIssue } from "./validation.ts";
 
 export const IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
