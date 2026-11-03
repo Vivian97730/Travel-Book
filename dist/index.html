@@ -16,7 +16,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&amp;family=Noto+Sans+TC:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20261103e">
+    <link rel="stylesheet" href="styles.css?v=20261103f">
     <script>document.documentElement.classList.add("js");</script>
   </head>
   <body>
@@ -30,10 +30,18 @@
       </noscript>
     </div>
     <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
-    <script src="app.js?v=20261103e"></script>
+    <script src="app.js?v=20261103f"></script>
     <script>
       if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => navigator.serviceWorker.register("service-worker.js"));
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (refreshing) return;
+          refreshing = true;
+          window.location.reload();
+        });
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("service-worker.js").then((registration) => registration.update());
+        });
       }
     </script>
   </body>

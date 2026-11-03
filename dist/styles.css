@@ -484,6 +484,7 @@ textarea:focus-visible {
   border-radius: var(--radius-panel);
   background: var(--card);
   box-shadow: var(--shadow-soft);
+  will-change: transform;
 }
 
 .schedule-card::before,
@@ -512,7 +513,7 @@ textarea:focus-visible {
 .timeline-copy p { margin-top: 0.25rem; color: var(--muted); font-size: 0.8rem; }
 .navigate-link { display: inline-flex; gap: 0.3rem; align-items: center; margin-top: 0.55rem; color: var(--forest); font-size: 0.76rem; font-weight: 700; text-decoration: none; }
 .schedule-controls { display: grid; grid-template-columns: repeat(2, 2.75rem); align-items: center; }
-.drag-handle { grid-column: 1 / -1; display: grid; min-height: 2.75rem; place-items: center; color: var(--muted); cursor: grab; touch-action: none; }
+.drag-handle { grid-column: 1 / -1; display: grid; min-height: 2.75rem; place-items: center; color: var(--muted); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .danger-icon { color: var(--danger); }
 .add-itinerary-button { margin-top: 1rem; }
 
@@ -628,7 +629,9 @@ textarea:focus-visible {
 
 .dialog {
   width: min(calc(100% - 2rem), 32rem);
+  max-width: calc(100vw - 2rem);
   padding: 0;
+  overflow-x: hidden;
   border: 0;
   border-radius: var(--radius-card);
   background: var(--card);
@@ -637,7 +640,8 @@ textarea:focus-visible {
 }
 
 .dialog::backdrop { background: rgba(36,40,39,0.45); backdrop-filter: blur(5px); }
-.dialog-form { display: grid; min-width: 0; gap: 1rem; padding: 1.4rem; }
+.dialog-form { display: grid; min-width: 0; max-width: 100%; gap: 1rem; padding: 1.4rem; overflow-x: hidden; }
+.dialog-form > * { min-inline-size: 0; max-inline-size: 100%; }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .dialog-head h2 { font-size: 1.25rem; }
 .field-group { display: grid; min-width: 0; gap: 0.4rem; }
@@ -654,7 +658,7 @@ textarea:focus-visible {
 .stay-photo-finder[data-photo-state="ready"] .stay-photo-thumb { background: var(--forest); color: var(--lime); }
 @keyframes photo-pulse { to { opacity: 0.48; } }
 .date-field-row { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
-.field { width: 100%; min-width: 0; max-width: 100%; min-height: 3rem; padding: 0.7rem 0.9rem; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); }
+.field { width: 100%; min-width: 0; max-width: 100%; min-inline-size: 0; max-inline-size: 100%; inline-size: 100%; min-height: 3rem; padding: 0.7rem 0.9rem; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); font-size: max(1rem, 16px); }
 input[type="date"].field,
 input[type="time"].field { display: block; }
 input[type="date"].field::-webkit-date-and-time-value,
@@ -665,6 +669,30 @@ textarea.field { min-height: 6rem; resize: vertical; }
 .delete-expense-button { margin-right: auto; }
 .itinerary-detail { display: grid; gap: 0.7rem; }
 .itinerary-detail p { color: var(--muted); line-height: 1.7; }
+
+@supports (-webkit-touch-callout: none) {
+  .dialog,
+  .dialog-form,
+  .field-group,
+  .date-field-row { min-inline-size: 0; max-inline-size: 100%; }
+
+  input[type="date"].field,
+  input[type="time"].field {
+    -webkit-appearance: none;
+    appearance: none;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+  input[type="date"].field::-webkit-date-and-time-value,
+  input[type="time"].field::-webkit-date-and-time-value {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    text-align: left;
+  }
+}
 
 .toast-region { position: fixed; z-index: 100; inset: 1rem 1rem auto; display: grid; justify-items: center; pointer-events: none; }
 .toast { padding: 0.75rem 1rem; border-radius: var(--radius-pill); background: var(--ink); color: white; box-shadow: var(--shadow); font-size: 0.82rem; animation: toast-in 180ms ease-out both; }
