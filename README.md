@@ -44,6 +44,8 @@ pnpm build
 
 正式建置會輸出至 `build/`，不會覆蓋 `dist/` 內的 prototype。
 
+GitHub Pages 只發布 `build/`。正式站使用 `/Travel-Book/` 作為 Vite base，並使用 Hash 路由，避免重新整理子頁時需要伺服器 Rewrite。前端呼叫後端時，從 `.env.example` 所記錄的 `VITE_API_BASE_URL` 讀取完整 Supabase Edge Function 網址，不使用相對 `/api` 路徑。
+
 ## Prototype 本機預覽
 
 在本目錄執行：
