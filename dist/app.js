@@ -8,7 +8,6 @@ const tripDates = [
 const state = {
   view: getInitialView(),
   selectedDate: "02/06",
-  dateWindow: 0,
   factEditing: false,
   facts: [
     { id: 1, icon: "globe", title: "和台灣的時差", text: "冬季慢 7 小時" },
@@ -121,7 +120,7 @@ function homeScreen() {
       <article class="card hero-card">
         ${heroIllustration()}<div class="hero-veil"></div>
         <div class="hero-copy">
-          <div class="hero-heading"><span class="trip-range">2027／02／05（五）－02／15（一）・11 天 10 夜</span><h2 class="hero-title">2027 過年東歐遊<small>維也納 · 哈修塔特 · 布達佩斯</small></h2></div>
+          <div class="hero-heading"><span class="trip-range">02/05 (五) - 02/15 (一)・11 天 10 夜</span><h2 class="hero-title">2027 過年東歐遊<small>維也納 · 哈修塔特 · 布達佩斯</small></h2></div>
           <div class="hero-details"><div class="hero-meta"><div class="hero-metric"><span>距離起飛</span><strong id="countdown-value">計算中</strong></div><div class="hero-metric"><span>目前天氣</span><strong>臺北 24°C ☁</strong></div></div><p class="location-status">${icon("location", 15)}${state.locationStatus}</p></div>
         </div>
       </article>
@@ -149,10 +148,9 @@ function flightRow(label, from, fromTime, stop, stopTime, to, toTime, duration) 
 
 function itineraryScreen() {
   const selected = tripDates.find(([date]) => date === state.selectedDate) || tripDates[1];
-  const visibleDates = tripDates.slice(state.dateWindow, state.dateWindow + 5);
   return `<main id="main" class="screen">
     ${pageHeading("Daily plan", "每日行程")}
-    <section class="date-strip" aria-label="選擇日期">${visibleDates.map(([date, weekday]) => `<button class="date-button" type="button" data-date="${date}" aria-pressed="${date === state.selectedDate}"><span>週${weekday}</span><strong>${date.slice(3)}</strong></button>`).join("")}</section>
+    <section class="date-strip" aria-label="選擇日期">${tripDates.map(([date, weekday]) => `<button class="date-button" type="button" data-date="${date}" aria-pressed="${date === state.selectedDate}"><span>週${weekday}</span><strong>${date.slice(3)}</strong></button>`).join("")}</section>
     <div class="itinerary-grid">
       <section class="card map-card" data-map-provider="openstreetmap" data-map-points="住宿地點|美泉宮|中央咖啡館|維也納舊城" aria-label="OpenStreetMap 每日實際地點地圖預留區，目前為原型示意">
         ${mapIllustration()}<span class="map-label">${selected[2]}・4 個地點</span><button class="primary-button map-action" type="button" data-action="open-map">${icon("map", 18)}開啟 Google Maps</button>
@@ -237,7 +235,7 @@ function formatExpenseDate(date) {
 function expenseRow(item) {
   const iconName = { "食物": "food", "交通": "train", "景點": "sight", "逛街": "shop", "超市": "market", "機票": "plane" }[item.category] || "wallet";
   const categoryClass = { "食物": "food", "交通": "transit", "景點": "sight", "逛街": "shopping", "超市": "market", "機票": "flight" }[item.category] || "other";
-  return `<article class="expense-row"><span class="expense-icon category-${categoryClass}">${icon(iconName, 18)}</span><div class="expense-copy"><span>${item.category}</span><strong>${item.title}</strong></div><div class="expense-amount"><strong>${formatMoney(item.currency, item.amount)}</strong><span>約 TWD ${new Intl.NumberFormat("zh-TW").format(item.twd || 0)}</span></div><div class="expense-actions"><button class="icon-button" type="button" data-edit-expense="${item.id}" aria-label="修改${item.title}">${icon("edit", 17)}</button><button class="icon-button" type="button" data-delete-expense="${item.id}" aria-label="刪除${item.title}">${icon("trash", 17)}</button></div></article>`;
+  return `<button class="expense-row" type="button" data-edit-expense="${item.id}" aria-label="編輯${item.title}"><span class="expense-icon category-${categoryClass}">${icon(iconName, 18)}</span><span class="expense-copy"><span>${item.category}</span><strong>${item.title}</strong></span><span class="expense-amount"><strong>${formatMoney(item.currency, item.amount)}</strong><span>約 TWD ${new Intl.NumberFormat("zh-TW").format(item.twd || 0)}</span></span><span class="expense-edit-cue" aria-hidden="true">${icon("chevron", 17)}</span></button>`;
 }
 
 function formatMoney(currency, amount) {
@@ -266,7 +264,7 @@ function bottomNav() {
 }
 
 function dialogs() {
-  return `<dialog class="dialog" id="expense-dialog"><form class="dialog-form" data-form="expense"><input type="hidden" name="id"><header class="dialog-head"><h2 id="expense-dialog-title">新增支出</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="關閉">${icon("close", 20)}</button></header><div class="field-group"><label for="expense-date">日期</label><input class="field" id="expense-date" name="date" type="date" min="2027-02-05" max="2027-02-15" value="2027-02-06" required></div><div class="field-group"><label for="expense-name">名稱</label><input class="field" id="expense-name" name="title" placeholder="例如：午餐" required maxlength="50"></div><div class="field-group"><label for="expense-category">類別</label><select class="field" id="expense-category" name="category"><option>食物</option><option>交通</option><option>景點</option><option>逛街</option><option>超市</option><option>機票</option></select></div><div class="field-group"><label for="expense-currency">幣別</label><select class="field" id="expense-currency" name="currency"><option value="TWD">台幣 TWD</option><option value="EUR">歐元 EUR</option><option value="HUF">匈牙利幣 HUF</option></select></div><div class="field-group"><label for="expense-amount">金額</label><input class="field" id="expense-amount" name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" required></div><div class="dialog-actions"><button class="secondary-button" type="button" data-action="close-dialog">取消</button><button class="primary-button" type="submit" id="expense-submit">新增</button></div></form></dialog>
+  return `<dialog class="dialog" id="expense-dialog"><form class="dialog-form" data-form="expense"><input type="hidden" name="id"><header class="dialog-head"><h2 id="expense-dialog-title">新增支出</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="關閉">${icon("close", 20)}</button></header><div class="field-group"><label for="expense-date">日期</label><input class="field" id="expense-date" name="date" type="date" min="2027-02-05" max="2027-02-15" value="2027-02-06" required></div><div class="field-group"><label for="expense-name">名稱</label><input class="field" id="expense-name" name="title" placeholder="例如：午餐" required maxlength="50"></div><div class="field-group"><label for="expense-category">類別</label><select class="field" id="expense-category" name="category"><option>食物</option><option>交通</option><option>景點</option><option>逛街</option><option>超市</option><option>機票</option></select></div><div class="field-group"><label for="expense-currency">幣別</label><select class="field" id="expense-currency" name="currency"><option value="TWD">台幣 TWD</option><option value="EUR">歐元 EUR</option><option value="HUF">匈牙利幣 HUF</option></select></div><div class="field-group"><label for="expense-amount">金額</label><input class="field" id="expense-amount" name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" required></div><div class="dialog-actions"><button class="danger-button delete-expense-button" type="button" data-action="delete-expense" hidden>${icon("trash", 17)}刪除支出</button><button class="secondary-button" type="button" data-action="close-dialog">取消</button><button class="primary-button" type="submit" id="expense-submit">新增</button></div></form></dialog>
   <dialog class="dialog" id="list-dialog"><form class="dialog-form" data-form="list"><header class="dialog-head"><h2>新增清單項目</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="關閉">${icon("close", 20)}</button></header><div class="field-group"><label for="list-name">項目名稱</label><input class="field" id="list-name" name="title" placeholder="例如：暖暖包" required maxlength="50"></div><div class="dialog-actions"><button class="secondary-button" type="button" data-action="close-dialog">取消</button><button class="primary-button" type="submit">新增</button></div></form></dialog>
   <dialog class="dialog" id="itinerary-dialog"><div class="dialog-form"><header class="dialog-head"><h2 id="itinerary-dialog-title"></h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="關閉">${icon("close", 20)}</button></header><section class="itinerary-detail"><p id="itinerary-detail-note"></p><div class="dialog-actions"><button class="secondary-button" type="button" data-action="close-dialog">關閉</button><a class="primary-button" id="itinerary-detail-map" target="_blank" rel="noreferrer" style="text-decoration:none">${icon("location", 17)}導航</a></div></section></div></dialog>
   <dialog class="dialog" id="itinerary-edit-dialog"><form class="dialog-form" data-form="itinerary"><input type="hidden" name="id"><header class="dialog-head"><h2 id="itinerary-edit-title">修改行程</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="關閉">${icon("close", 20)}</button></header><div class="field-group"><label for="itinerary-title">行程名稱</label><input class="field" id="itinerary-title" name="title" required maxlength="80"></div><div class="field-group"><label for="itinerary-note">內容</label><textarea class="field" id="itinerary-note" name="note" required maxlength="300"></textarea></div><div class="field-group"><label for="itinerary-category">類別</label><select class="field" id="itinerary-category" name="icon"><option value="train">交通</option><option value="sight">景點</option><option value="food">食物</option><option value="shop">逛街</option></select></div><div class="dialog-actions"><button class="secondary-button" type="button" data-action="close-dialog">取消</button><button class="primary-button" type="submit">儲存</button></div></form></dialog>
@@ -288,7 +286,6 @@ function bindEvents() {
   document.querySelectorAll("[data-list]").forEach((button) => button.addEventListener("click", () => { state.activeList = button.dataset.list; render(); }));
   document.querySelectorAll("[data-toggle-list]").forEach((button) => button.addEventListener("click", () => toggleList(Number(button.dataset.toggleList))));
   document.querySelectorAll("[data-delete-list]").forEach((button) => button.addEventListener("click", () => deleteList(Number(button.dataset.deleteList))));
-  document.querySelectorAll("[data-delete-expense]").forEach((button) => button.addEventListener("click", () => deleteExpense(Number(button.dataset.deleteExpense))));
   document.querySelectorAll("[data-delete-fact]").forEach((button) => button.addEventListener("click", () => deleteFact(Number(button.dataset.deleteFact))));
   document.querySelectorAll("[data-edit-expense]").forEach((button) => button.addEventListener("click", () => openExpenseDialog(Number(button.dataset.editExpense))));
   document.querySelectorAll("[data-expense-date]").forEach((button) => button.addEventListener("click", () => toggleExpenseDate(button.dataset.expenseDate)));
@@ -303,6 +300,7 @@ function bindEvents() {
   document.querySelector('[data-action="add-itinerary"]')?.addEventListener("click", () => openItineraryEditDialog());
   document.querySelector('[data-action="add-stay"]')?.addEventListener("click", () => openStayDialog());
   document.querySelector('[data-action="delete-stay"]')?.addEventListener("click", deleteStayFromDialog);
+  document.querySelector('[data-action="delete-expense"]')?.addEventListener("click", deleteExpenseFromDialog);
   document.querySelector('[data-action="add-expense"]')?.addEventListener("click", () => openExpenseDialog());
   document.querySelector('[data-action="add-list-item"]')?.addEventListener("click", () => document.querySelector("#list-dialog")?.showModal());
   document.querySelectorAll('[data-action="close-dialog"]').forEach((button) => button.addEventListener("click", () => button.closest("dialog")?.close()));
@@ -319,6 +317,8 @@ function bindEvents() {
 }
 
 function setView(view) {
+  state.factEditing = false;
+  state.itineraryEditing = false;
   state.view = view;
   history.replaceState({}, "", `#${view}`);
   render();
@@ -327,10 +327,8 @@ function setView(view) {
 
 function selectDate(date) {
   state.selectedDate = date;
-  const index = tripDates.findIndex(([value]) => value === date);
-  if (index < state.dateWindow) state.dateWindow = index;
-  if (index > state.dateWindow + 4) state.dateWindow = Math.min(index - 4, tripDates.length - 5);
   render();
+  document.querySelector(`[data-date="${date}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
 }
 
 function toggleList(id) {
@@ -342,12 +340,6 @@ function toggleList(id) {
 function deleteList(id) {
   state.lists[state.activeList] = state.lists[state.activeList].filter((item) => item.id !== id);
   toast("已從清單移除");
-  render();
-}
-
-function deleteExpense(id) {
-  state.expenses = state.expenses.filter((item) => item.id !== id);
-  toast("已刪除支出");
   render();
 }
 
@@ -382,6 +374,7 @@ function openItineraryEditDialog(id = null) {
     form.elements.icon.value = item.icon;
   }
   dialog.showModal();
+  requestAnimationFrame(() => form.elements.title.focus({ preventScroll: true }));
 }
 
 function saveItineraryItem(event) {
@@ -437,6 +430,7 @@ function openStayDialog(id = null) {
     updateStayPhotoPreview("", false);
   }
   dialog.showModal();
+  requestAnimationFrame(() => form.elements.title.focus({ preventScroll: true }));
 }
 
 function saveStay(event) {
@@ -506,12 +500,22 @@ function deleteStayFromDialog() {
 
 function reorderItineraryItems(sourceId, targetId) {
   if (sourceId === targetId) return;
+  const previousPositions = new Map([...document.querySelectorAll("[data-itinerary-card]")].map((card) => [card.dataset.itineraryCard, card.getBoundingClientRect()]));
   const sourceIndex = state.itineraryItems.findIndex((item) => item.id === sourceId);
   const targetIndex = state.itineraryItems.findIndex((item) => item.id === targetId);
   if (sourceIndex < 0 || targetIndex < 0) return;
   const [moved] = state.itineraryItems.splice(sourceIndex, 1);
   state.itineraryItems.splice(targetIndex, 0, moved);
   render();
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  document.querySelectorAll("[data-itinerary-card]").forEach((card) => {
+    const previous = previousPositions.get(card.dataset.itineraryCard);
+    if (!previous) return;
+    const current = card.getBoundingClientRect();
+    const deltaY = previous.top - current.top;
+    if (Math.abs(deltaY) < 1) return;
+    card.animate([{ transform: `translateY(${deltaY}px)` }, { transform: "translateY(0)" }], { duration: 240, easing: "cubic-bezier(.2,.8,.2,1)" });
+  });
 }
 
 function bindItineraryDragAndDrop() {
@@ -531,22 +535,42 @@ function bindItineraryDragAndDrop() {
     const handle = card.querySelector(".drag-handle");
     if (!handle) return;
     let pointerTargetId = Number(card.dataset.itineraryCard);
+    let pointerStartY = 0;
     handle.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      pointerStartY = event.clientY;
       handle.setPointerCapture(event.pointerId);
-      card.classList.add("is-dragging");
+      card.classList.add("is-dragging", "is-touch-dragging");
     });
     handle.addEventListener("pointermove", (event) => {
       if (!handle.hasPointerCapture(event.pointerId)) return;
-      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-itinerary-card]");
-      if (target) pointerTargetId = Number(target.dataset.itineraryCard);
+      const deltaY = event.clientY - pointerStartY;
+      card.style.setProperty("--drag-offset-y", `${deltaY}px`);
+      if (Math.abs(deltaY) < 20) return;
+      const target = [...document.querySelectorAll("[data-itinerary-card]")]
+        .filter((item) => item !== card)
+        .map((item) => ({ item, rect: item.getBoundingClientRect() }))
+        .filter(({ rect }) => deltaY > 0 ? rect.top + rect.height / 2 > pointerStartY : rect.top + rect.height / 2 < pointerStartY)
+        .sort((a, b) => Math.abs(event.clientY - (a.rect.top + a.rect.height / 2)) - Math.abs(event.clientY - (b.rect.top + b.rect.height / 2)))[0]?.item;
+      document.querySelectorAll(".is-drop-target").forEach((item) => item.classList.remove("is-drop-target"));
+      if (target && target !== card) {
+        pointerTargetId = Number(target.dataset.itineraryCard);
+        target.classList.add("is-drop-target");
+      }
     });
     handle.addEventListener("pointerup", (event) => {
       if (!handle.hasPointerCapture(event.pointerId)) return;
       handle.releasePointerCapture(event.pointerId);
-      card.classList.remove("is-dragging");
+      card.classList.remove("is-dragging", "is-touch-dragging");
+      card.style.removeProperty("--drag-offset-y");
+      document.querySelectorAll(".is-drop-target").forEach((item) => item.classList.remove("is-drop-target"));
       reorderItineraryItems(Number(card.dataset.itineraryCard), pointerTargetId);
     });
-    handle.addEventListener("pointercancel", () => card.classList.remove("is-dragging"));
+    handle.addEventListener("pointercancel", () => {
+      card.classList.remove("is-dragging", "is-touch-dragging");
+      card.style.removeProperty("--drag-offset-y");
+      document.querySelectorAll(".is-drop-target").forEach((item) => item.classList.remove("is-drop-target"));
+    });
   });
 }
 
@@ -559,12 +583,14 @@ function toggleExpenseDate(date) {
 function openExpenseDialog(id = null) {
   const dialog = document.querySelector("#expense-dialog");
   const form = dialog?.querySelector("form");
-  if (!dialog || !form) return;
+  const deleteButton = dialog?.querySelector('[data-action="delete-expense"]');
+  if (!dialog || !form || !deleteButton) return;
   form.reset();
   form.elements.id.value = "";
   form.elements.date.value = state.selectedDate ? `2027-${state.selectedDate.replace("/", "-")}` : "2027-02-06";
   document.querySelector("#expense-dialog-title").textContent = id ? "修改支出" : "新增支出";
   document.querySelector("#expense-submit").textContent = id ? "儲存修改" : "新增";
+  deleteButton.hidden = !id;
   if (id) {
     const item = state.expenses.find((entry) => entry.id === id);
     if (!item) return;
@@ -576,6 +602,17 @@ function openExpenseDialog(id = null) {
     form.elements.amount.value = String(item.amount);
   }
   dialog.showModal();
+  requestAnimationFrame(() => form.elements[id ? "title" : "date"].focus({ preventScroll: true }));
+}
+
+function deleteExpenseFromDialog() {
+  const dialog = document.querySelector("#expense-dialog");
+  const id = Number(dialog?.querySelector('[name="id"]')?.value);
+  if (!id) return;
+  state.expenses = state.expenses.filter((item) => item.id !== id);
+  dialog.close();
+  toast("已刪除支出");
+  render();
 }
 
 function addExpense(event) {
@@ -628,7 +665,12 @@ function toast(message) {
 
 window.addEventListener("hashchange", () => {
   const view = window.location.hash.replace("#", "");
-  if (["home", "itinerary", "stays", "expenses", "lists"].includes(view)) { state.view = view; render(); }
+  if (["home", "itinerary", "stays", "expenses", "lists"].includes(view)) {
+    state.factEditing = false;
+    state.itineraryEditing = false;
+    state.view = view;
+    render();
+  }
 });
 
 render();
