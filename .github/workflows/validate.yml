@@ -10,6 +10,44 @@ permissions:
   contents: read
 
 jobs:
+  formal-frontend:
+    name: Validate formal frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Build GitHub Pages artifact
+        run: pnpm build
+
+      - name: Verify formal build output
+        run: |
+          test -f build/index.html
+          test -d build/assets
+          test ! -e build/supabase
+          test ! -e build/tests
+          test ! -e build/.env
+
   static-prototype:
     name: Validate static prototype
     runs-on: ubuntu-latest

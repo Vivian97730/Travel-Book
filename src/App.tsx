@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Icon, type IconName } from "./components/Icon";
 import { HomePage } from "./features/home/HomePage";
 import { BrowserHomeRepository } from "./features/home/homeRepository";
+import { hashForRoute, routeFromHash, type Route } from "./routing";
 
 const routes = [
   ["home", "home", "首頁"],
@@ -11,20 +12,13 @@ const routes = [
   ["lists", "list", "清單"],
 ] as const;
 
-type Route = (typeof routes)[number][0];
-
-function routeFromHash(): Route {
-  const candidate = window.location.hash.slice(1) as Route;
-  return routes.some(([route]) => route === candidate) ? candidate : "itinerary";
-}
-
 export default function App() {
-  const [route, setRoute] = useState<Route>(routeFromHash);
+  const [route, setRoute] = useState<Route>(() => routeFromHash(window.location.hash));
   const [online, setOnline] = useState(navigator.onLine);
   const repository = useMemo(() => new BrowserHomeRepository(), []);
 
   useEffect(() => {
-    const updateRoute = () => setRoute(routeFromHash());
+    const updateRoute = () => setRoute(routeFromHash(window.location.hash));
     const updateOnline = () => setOnline(navigator.onLine);
     window.addEventListener("hashchange", updateRoute);
     window.addEventListener("online", updateOnline);
@@ -37,7 +31,7 @@ export default function App() {
   }, []);
 
   function navigate(next: Route) {
-    window.location.hash = next;
+    window.location.hash = hashForRoute(next);
   }
 
   return <div className="app-shell">
