@@ -15,6 +15,22 @@
 
 正式程式尚未取代 GitHub Pages 上的 prototype；其餘四頁會依後續功能切片逐步移植。
 
+## 正式系統基礎
+
+階段 0 已建立正式系統的共同基礎：
+
+- `packages/contracts`：前後端共用 DTO、穩定錯誤代碼、執行期驗證與共享寫入 metadata。
+- Home Repository 契約測試：Browser 與 Fake Adapter 必須遵守相同的資料隔離、正規化及版本衝突行為。
+- `supabase/functions/travel-book-api`：Edge Function 最小健康檢查入口。
+- `supabase/migrations`、`supabase/tests`、`supabase/seed.sql`：可重現的 Database 基礎與測試骨架。
+- `tests/visual/prototype-baseline.json`：核准 Prototype 與三種 viewport 截圖的 SHA-256 基準。
+
+本機可使用下列命令確認 Prototype 基準未被意外修改：
+
+```bash
+pnpm verify:prototype
+```
+
 ## 頁面
 
 - 首頁：以歐洲雪山、積雪小鎮與尖屋頂建築構成冬季主視覺，文字靠下避免遮擋插畫，並包含旅程封面、倒數、天氣狀態、航班與小知識。

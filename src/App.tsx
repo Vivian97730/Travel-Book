@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Icon, type IconName } from "./components/Icon";
+import { BrowserHomeRepository } from "./features/home/browserHomeRepository";
 import { HomePage } from "./features/home/HomePage";
-import { BrowserHomeRepository } from "./features/home/homeRepository";
 
 const routes = [
   ["home", "home", "首頁"],

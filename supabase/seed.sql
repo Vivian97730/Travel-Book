@@ -1,0 +1,1 @@
+-- Shared trip seed data will be added with the stage that introduces each table.
