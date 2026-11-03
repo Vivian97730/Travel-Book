@@ -174,7 +174,7 @@ function scheduleItem({ id, icon: iconName, title, note }) {
   const controls = state.itineraryEditing
     ? `<div class="schedule-controls"><span class="drag-handle" aria-hidden="true">${icon("grip", 20)}</span><button class="icon-button" type="button" data-edit-itinerary="${id}" aria-label="修改${title}">${icon("edit", 17)}</button><button class="icon-button danger-icon" type="button" data-delete-itinerary="${id}" aria-label="刪除${title}">${icon("trash", 17)}</button></div>`
     : `<button class="icon-button" type="button" data-view-itinerary="${id}" aria-label="檢視${title}">${icon("chevron", 18)}</button>`;
-  return `<article class="schedule-card ${state.itineraryEditing ? "is-editing" : ""}" data-itinerary-card="${id}" draggable="${state.itineraryEditing}"><span class="timeline-icon category-${categoryClass}">${icon(iconName, 21)}</span><div class="timeline-copy"><strong>${title}</strong><p>${note}</p><a class="navigate-link" href="${mapUrl}" target="_blank" rel="noreferrer">${icon("location", 14)}導航</a></div>${controls}</article>`;
+  return `<article class="schedule-card ${state.itineraryEditing ? "is-editing" : ""}" data-itinerary-card="${id}"><span class="timeline-icon category-${categoryClass}">${icon(iconName, 21)}</span><div class="timeline-copy"><strong>${title}</strong><p>${note}</p><a class="navigate-link" href="${mapUrl}" target="_blank" rel="noreferrer">${icon("location", 14)}導航</a></div>${controls}</article>`;
 }
 
 function googleMapsSearchUrl(placeName) {
@@ -508,36 +508,30 @@ function reorderItineraryItems(sourceId, targetId) {
   state.itineraryItems.splice(targetIndex, 0, moved);
   render();
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  document.querySelectorAll("[data-itinerary-card]").forEach((card) => {
-    const previous = previousPositions.get(card.dataset.itineraryCard);
-    if (!previous) return;
-    const current = card.getBoundingClientRect();
-    const deltaY = previous.top - current.top;
-    if (Math.abs(deltaY) < 1) return;
-    card.animate([{ transform: `translateY(${deltaY}px)` }, { transform: "translateY(0)" }], { duration: 240, easing: "cubic-bezier(.2,.8,.2,1)" });
+  requestAnimationFrame(() => {
+    document.querySelectorAll("[data-itinerary-card]").forEach((card) => {
+      const previous = previousPositions.get(card.dataset.itineraryCard);
+      if (!previous) return;
+      const current = card.getBoundingClientRect();
+      const deltaY = previous.top - current.top;
+      if (Math.abs(deltaY) < 1) return;
+      card.animate(
+        [{ transform: `translateY(${deltaY}px)` }, { transform: "translateY(0)" }],
+        { duration: 280, easing: "cubic-bezier(.2,.8,.2,1)" },
+      );
+    });
   });
 }
 
 function bindItineraryDragAndDrop() {
-  document.querySelectorAll("[data-itinerary-card][draggable='true']").forEach((card) => {
-    card.addEventListener("dragstart", (event) => {
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", card.dataset.itineraryCard);
-      card.classList.add("is-dragging");
-    });
-    card.addEventListener("dragend", () => card.classList.remove("is-dragging"));
-    card.addEventListener("dragover", (event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; });
-    card.addEventListener("drop", (event) => {
-      event.preventDefault();
-      reorderItineraryItems(Number(event.dataTransfer.getData("text/plain")), Number(card.dataset.itineraryCard));
-    });
-
+  document.querySelectorAll("[data-itinerary-card].is-editing").forEach((card) => {
     const handle = card.querySelector(".drag-handle");
     if (!handle) return;
     let pointerTargetId = Number(card.dataset.itineraryCard);
     let pointerStartY = 0;
     handle.addEventListener("pointerdown", (event) => {
       event.preventDefault();
+      pointerTargetId = Number(card.dataset.itineraryCard);
       pointerStartY = event.clientY;
       handle.setPointerCapture(event.pointerId);
       card.classList.add("is-dragging", "is-touch-dragging");

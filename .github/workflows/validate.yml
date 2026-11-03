@@ -20,6 +20,9 @@ jobs:
       - name: Validate JavaScript syntax
         run: node --check dist/app.js && node --check dist/service-worker.js
 
+      - name: Validate iOS standalone safeguards
+        run: node scripts/validate-ios-standalone.mjs
+
       - name: Validate manifest and required assets
         run: |
           python3 -m json.tool dist/manifest.webmanifest >/dev/null

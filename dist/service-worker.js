@@ -1,9 +1,9 @@
-const CACHE_NAME = "travel-book-prototype-v6";
+const CACHE_NAME = "travel-book-prototype-v7";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20261103e",
-  "./app.js?v=20261103e",
+  "./styles.css?v=20261103f",
+  "./app.js?v=20261103f",
   "./manifest.webmanifest",
   "./assets/hero-winter-pine.jpg",
   "./icons/app-icon-192.png",
@@ -27,6 +27,22 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || new URL(event.request.url).origin !== self.location.origin) return;
+
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => Promise.all([
+            cache.put("./", copy.clone()),
+            cache.put("./index.html", copy),
+          ]));
+          return response;
+        })
+        .catch(() => caches.match("./index.html").then((cached) => cached || caches.match("./"))),
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
