@@ -94,7 +94,8 @@ describe("travel-book-api handler", () => {
   });
 
   it("maps an access store failure to a stable unavailable response", async () => {
-    const deps = dependencies(vi.fn(async () => { throw new Error("database details"); }));
+    const error = Object.assign(new Error("database details"), { status: 401 });
+    const deps = dependencies(vi.fn(async () => { throw error; }));
     const response = await handleRequest(new Request("http://localhost/v1/access/verify", {
       method: "POST",
       headers: { authorization: "Bearer private-token" },
@@ -107,6 +108,7 @@ describe("travel-book-api handler", () => {
       value: { error: { code: "EXTERNAL_SERVICE_UNAVAILABLE", details: {} } },
     });
     expect(JSON.stringify(body)).not.toContain("database details");
+    expect(deps.log).toHaveBeenCalledWith(expect.objectContaining({ upstreamStatus: 401 }));
   });
 
   it("returns the shared stable error contract for unknown routes", async () => {

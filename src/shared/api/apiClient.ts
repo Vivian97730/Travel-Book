@@ -34,7 +34,8 @@ export class ApiClient {
     const requestId = crypto.randomUUID();
     let response: Response;
     try {
-      response = await this.fetcher(`${this.baseUrl}/v1/access/verify`, {
+      const fetcher = this.fetcher;
+      response = await fetcher(`${this.baseUrl}/v1/access/verify`, {
         method: "POST",
         headers: {
           authorization: `Bearer ${token}`,

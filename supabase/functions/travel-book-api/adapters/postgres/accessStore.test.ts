@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { SupabaseAccessStore } from "./accessStore";
+import { AccessStoreRequestError, SupabaseAccessStore } from "./accessStore";
 
 describe("Supabase access store", () => {
   it("maps the private RPC result without returning database rows directly", async () => {
@@ -33,5 +33,15 @@ describe("Supabase access store", () => {
     const fetcher = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async () => Response.json([]));
     const store = new SupabaseAccessStore("https://project.supabase.co", "secret-key", fetcher);
     await expect(store.verify("revoked-token")).resolves.toBeNull();
+  });
+
+  it("reports only the upstream status when PostgREST rejects a request", async () => {
+    const fetcher = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async () => new Response(
+      JSON.stringify({ message: "sensitive database details" }),
+      { status: 401 },
+    ));
+    const store = new SupabaseAccessStore("https://project.supabase.co", "secret-key", fetcher);
+
+    await expect(store.verify("private-token")).rejects.toEqual(new AccessStoreRequestError(401));
   });
 });

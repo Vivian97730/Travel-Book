@@ -12,6 +12,13 @@ interface AccessRpcRow {
   resource_versions: Record<string, number> | null;
 }
 
+export class AccessStoreRequestError extends Error {
+  constructor(readonly status: number) {
+    super("ACCESS_STORE_UNAVAILABLE");
+    this.name = "AccessStoreRequestError";
+  }
+}
+
 export class SupabaseAccessStore implements AccessStore {
   private readonly baseUrl: string;
 
@@ -25,7 +32,7 @@ export class SupabaseAccessStore implements AccessStore {
       headers: { apikey: this.secretKey, "content-type": "application/json" },
       body: JSON.stringify({ p_token: token }),
     });
-    if (!response.ok) throw new Error("ACCESS_STORE_UNAVAILABLE");
+    if (!response.ok) throw new AccessStoreRequestError(response.status);
 
     const rows = await response.json() as AccessRpcRow[];
     const row = rows[0];

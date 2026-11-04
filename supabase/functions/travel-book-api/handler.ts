@@ -44,12 +44,21 @@ function bearerToken(request: Request): string | null {
   return match?.[1] ?? null;
 }
 
+function safeUpstreamStatus(error: unknown): number | undefined {
+  if (typeof error !== "object" || error === null || !("status" in error)) return undefined;
+  const status = error.status;
+  return typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599
+    ? status
+    : undefined;
+}
+
 export async function handleRequest(request: Request, dependencies: HandlerDependencies): Promise<Response> {
   const url = new URL(request.url);
   const requestId = requestIdFor(request);
   const origin = request.headers.get("origin");
   const headers = corsHeaders(origin, dependencies.allowedOrigins);
   let response: Response;
+  let upstreamStatus: number | undefined;
 
   if (origin && !dependencies.allowedOrigins.has(origin)) {
     response = apiError("ACCESS_DENIED", "不允許此網站呼叫服務。", requestId, 403, {});
@@ -64,13 +73,20 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
       response = verified
         ? json(verified, 200, headers)
         : apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers);
-    } catch {
+    } catch (error) {
+      upstreamStatus = safeUpstreamStatus(error);
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
     }
   } else {
     response = apiError("RESOURCE_NOT_FOUND", "找不到指定的介面。", requestId, 404, headers);
   }
 
-  dependencies.log({ requestId, method: request.method, path: url.pathname, status: response.status });
+  dependencies.log({
+    requestId,
+    method: request.method,
+    path: url.pathname,
+    status: response.status,
+    ...(upstreamStatus ? { upstreamStatus } : {}),
+  });
   return response;
 }

@@ -43,4 +43,14 @@ describe("API client", () => {
     expect(error).toMatchObject({ code: "ACCESS_DENIED", requestId: "request-123" });
     expect(JSON.stringify(error)).not.toContain("revoked-private-token");
   });
+
+  it("calls the fetch implementation without binding it to the API client", async () => {
+    const fetcher = vi.fn(async function (this: unknown) {
+      expect(this).toBeUndefined();
+      return Response.json(verifiedTrip);
+    });
+    const client = new ApiClient("https://project.supabase.co/functions/v1/travel-book-api", fetcher);
+
+    await expect(client.verifyAccess("private-token")).resolves.toEqual(verifiedTrip);
+  });
 });
