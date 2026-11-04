@@ -1,4 +1,4 @@
-import { isRecord, type ParseResult, type ValidationIssue } from "./validation";
+import { isRecord, type ParseResult, type ValidationIssue } from "./validation.ts";
 
 export const factIcons = ["globe", "exchange", "plug", "water", "info"] as const;
 export type FactIcon = (typeof factIcons)[number];

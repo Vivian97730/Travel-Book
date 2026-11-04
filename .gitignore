@@ -9,6 +9,7 @@
 dist/icons/app-icon-original.png
 node_modules/
 build/
+supabase/.temp/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts

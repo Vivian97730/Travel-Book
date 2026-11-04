@@ -1,7 +1,7 @@
 {
-  ".hallmark/shots/127.0.0.1-4173-variant-A-375.png": "a5c21d505344044ee90e2f330b07b07281f16d72d9abaa45f9a89381691805c7",
-  ".hallmark/shots/127.0.0.1-4173-variant-A-1280x800.png": "759acf67468010ff2ace9c67161ef8e7630ca6482e5f824e76db2f4a149f9fe2",
-  ".hallmark/shots/127.0.0.1-4173-variant-A-1440x900.png": "c6457b3d80dee684716b64228635040477682b9dd46bd651b9c21f5f64988916",
+  "dist/.hallmark/shots/index-375.png": "a5c21d505344044ee90e2f330b07b07281f16d72d9abaa45f9a89381691805c7",
+  "dist/.hallmark/shots/index-1280x800.png": "759acf67468010ff2ace9c67161ef8e7630ca6482e5f824e76db2f4a149f9fe2",
+  "dist/.hallmark/shots/index-1440x900.png": "c6457b3d80dee684716b64228635040477682b9dd46bd651b9c21f5f64988916",
   "dist/index.html": "20fb828499f08ddba83a8da0c8197b108ec8ff47b23e8b12e03b0edee771dbe4",
   "dist/styles.css": "319fe2aba2cf5f0019d1bfcc24f9ba4c838b5cffa3cb9eb1416fe4de3b4b29a8",
   "dist/app.js": "78a995a307ae99a5ab82d8a83d0f13389af409421c0f29d9889c7a7911d09dae"

@@ -1,4 +1,4 @@
-import { isRecord, type ParseResult } from "./validation";
+import { isRecord, type ParseResult } from "./validation.ts";
 
 export const apiErrorCodes = [
   "ACCESS_DENIED",
