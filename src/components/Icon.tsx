@@ -18,6 +18,12 @@ const paths = {
   plug: <path d="M8 3v6M16 3v6M6 9h12v2a6 6 0 0 1-12 0zM12 17v4" />,
   water: <path d="M12 3s6 7 6 12a6 6 0 0 1-12 0c0-5 6-12 6-12z" />,
   info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" /></>,
+  food: <path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M16 3v18M16 3c3 2 4 5 4 8h-4" />,
+  train: <><rect x="5" y="3" width="14" height="15" rx="4" /><path d="M8 21l2-3M16 18l2 3M8 8h8M8 13h.01M16 13h.01" /></>,
+  sight: <path d="M4 21h16M6 21V10h12v11M8 10V6h8v4M10 6V3h4v3M10 14h4M10 18h4" />,
+  shop: <path d="M4 9h16l-1 12H5zM8 9a4 4 0 0 1 8 0" />,
+  map: <><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z" /><path d="M9 3v15M15 6v15" /></>,
+  chevron: <path d="m9 18 6-6-6-6" />,
 } as const;
 
 export type IconName = keyof typeof paths;

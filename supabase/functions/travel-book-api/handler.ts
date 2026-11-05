@@ -1,11 +1,16 @@
-import type { AccessVerifyResponse, ApiErrorCode } from "../../../packages/contracts/src/index.ts";
+import type { AccessVerifyResponse, ApiErrorCode, TripDay } from "../../../packages/contracts/src/index.ts";
 
 export interface AccessStore {
   verify(token: string): Promise<AccessVerifyResponse | null>;
 }
 
+export interface ItineraryStore {
+  getDay(tripId: string, date: string): Promise<TripDay | null>;
+}
+
 export interface HandlerDependencies {
   accessStore: AccessStore;
+  itineraryStore: ItineraryStore;
   allowedOrigins: ReadonlySet<string>;
   log(entry: Record<string, unknown>): void;
 }
@@ -73,6 +78,21 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
       response = verified
         ? json(verified, 200, headers)
         : apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers);
+    } catch (error) {
+      upstreamStatus = safeUpstreamStatus(error);
+      response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if (request.method === "GET" && /\/v1\/days\/\d{4}-\d{2}-\d{2}$/.test(url.pathname)) {
+    const token = bearerToken(request);
+    const date = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
+    try {
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      const day = verified ? await dependencies.itineraryStore.getDay(verified.trip.id, date) : null;
+      response = !verified
+        ? apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers)
+        : day
+          ? json(day, 200, headers)
+          : apiError("RESOURCE_NOT_FOUND", "找不到指定日期的行程。", requestId, 404, headers);
     } catch (error) {
       upstreamStatus = safeUpstreamStatus(error);
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);

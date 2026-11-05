@@ -71,6 +71,23 @@
   padding: 0.1rem 0.35rem;
 }
 
+.primary-button.map-action,
+.itinerary-detail .primary-button {
+  text-decoration: none;
+}
+
+.itinerary-place-name {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.timeline-icon.category-stay {
+  background: var(--coral-soft);
+  color: var(--danger);
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
