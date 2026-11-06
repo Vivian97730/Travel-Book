@@ -2,7 +2,7 @@ begin;
 
 set local search_path = public, extensions, pg_catalog;
 
-select plan(13);
+select plan(21);
 
 select has_table('app_private', 'places', 'places table exists');
 select has_table('app_private', 'trip_days', 'trip days table exists');
@@ -17,6 +17,69 @@ select is((public.get_trip_day('11111111-1111-4111-8111-111111111111', '2027-02-
 select is(jsonb_array_length(public.get_trip_day('11111111-1111-4111-8111-111111111111', '2027-02-06')->'items'), 4, 'lookup returns all ordered items');
 select is((public.get_trip_day('11111111-1111-4111-8111-111111111111', '2027-02-06')->'items'->0->>'sortOrder')::integer, 0, 'lookup preserves item ordering');
 select is(public.get_trip_day('11111111-1111-4111-8111-111111111111', '2027-02-20'), null::jsonb, 'lookup returns null for a missing day');
+
+select has_function(
+  'public',
+  'save_trip_day_items',
+  array['uuid', 'date', 'jsonb', 'bigint', 'uuid'],
+  'itinerary batch save function exists'
+);
+select function_privs_are(
+  'public',
+  'save_trip_day_items',
+  array['uuid', 'date', 'jsonb', 'bigint', 'uuid'],
+  'anon',
+  array[]::text[],
+  'anon cannot execute itinerary batch save'
+);
+select is(
+  (public.save_trip_day_items(
+    '11111111-1111-4111-8111-111111111111',
+    '2027-02-06',
+    '[
+      {"id":"20000000-0000-4000-8000-000000000003","title":"中央咖啡館早午餐","note":"已完成訂位","category":"food","sortOrder":0},
+      {"id":"20000000-0000-4000-8000-000000000005","title":"晚間音樂會","note":"提前三十分鐘入場","category":"sight","sortOrder":1}
+    ]'::jsonb,
+    1,
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  )->>'version')::bigint,
+  2::bigint,
+  'batch save increments the day version'
+);
+select is(
+  jsonb_array_length(public.get_trip_day('11111111-1111-4111-8111-111111111111', '2027-02-06')->'items'),
+  2,
+  'batch save deletes omitted items and inserts new items'
+);
+select is(
+  public.get_trip_day('11111111-1111-4111-8111-111111111111', '2027-02-06')->'items'->0->>'title',
+  '中央咖啡館早午餐',
+  'batch save updates item content and ordering'
+);
+select is(
+  public.get_trip_day('11111111-1111-4111-8111-111111111111', '2027-02-06')->'items'->0->'place'->>'id',
+  '30000000-0000-4000-8000-000000000002',
+  'batch save preserves the retained item place'
+);
+select is(
+  (public.save_trip_day_items(
+    '11111111-1111-4111-8111-111111111111',
+    '2027-02-06',
+    '[
+      {"id":"20000000-0000-4000-8000-000000000003","title":"中央咖啡館早午餐","note":"已完成訂位","category":"food","sortOrder":0},
+      {"id":"20000000-0000-4000-8000-000000000005","title":"晚間音樂會","note":"提前三十分鐘入場","category":"sight","sortOrder":1}
+    ]'::jsonb,
+    1,
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  )->>'version')::bigint,
+  2::bigint,
+  'idempotent retry replays the saved response'
+);
+select is(
+  (select version from app_private.trip_days where id = '10000000-0000-4000-8000-000000000002'),
+  2::bigint,
+  'idempotent retry does not increment the version again'
+);
 
 select * from finish();
 rollback;

@@ -28,7 +28,21 @@ export interface TripDay {
   items: ItineraryItem[];
 }
 
+export interface SaveTripDayItem {
+  id: string;
+  title: string;
+  note: string;
+  category: ItineraryCategory;
+  sortOrder: number;
+}
+
+export interface SaveTripDayRequest {
+  expectedVersion: number;
+  items: SaveTripDayItem[];
+}
+
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function requireText(value: unknown, path: string, label: string, issues: ValidationIssue[]): void {
   if (typeof value !== "string" || !value.trim()) issues.push({ path, message: `${label}不得為空。` });
@@ -101,4 +115,41 @@ export function parseTripDay(input: unknown): ParseResult<TripDay> {
   return issues.length
     ? { ok: false, issues }
     : { ok: true, value: input as unknown as TripDay };
+}
+
+export function parseSaveTripDayRequest(input: unknown): ParseResult<SaveTripDayRequest> {
+  if (!isRecord(input)) {
+    return { ok: false, issues: [{ path: "day", message: "行程保存格式不正確。" }] };
+  }
+
+  const issues: ValidationIssue[] = [];
+  if (!Number.isInteger(input.expectedVersion) || (input.expectedVersion as number) < 1) {
+    issues.push({ path: "expectedVersion", message: "預期版本必須是正整數。" });
+  }
+  if (!Array.isArray(input.items)) {
+    issues.push({ path: "items", message: "行程項目必須是陣列。" });
+  } else {
+    input.items.forEach((item, index) => {
+      const path = `items[${index}]`;
+      if (!isRecord(item)) {
+        issues.push({ path, message: "行程項目格式不正確。" });
+        return;
+      }
+      if (typeof item.id !== "string" || !uuidPattern.test(item.id)) {
+        issues.push({ path: `${path}.id`, message: "行程項目 ID 格式不正確。" });
+      }
+      requireText(item.title, `${path}.title`, "行程名稱", issues);
+      requireText(item.note, `${path}.note`, "行程內容", issues);
+      if (typeof item.category !== "string" || !itineraryCategories.includes(item.category as ItineraryCategory)) {
+        issues.push({ path: `${path}.category`, message: "行程分類不支援。" });
+      }
+      if (item.sortOrder !== index) {
+        issues.push({ path: `${path}.sortOrder`, message: "行程排序必須從 0 連續編號。" });
+      }
+    });
+  }
+
+  return issues.length
+    ? { ok: false, issues }
+    : { ok: true, value: input as unknown as SaveTripDayRequest };
 }

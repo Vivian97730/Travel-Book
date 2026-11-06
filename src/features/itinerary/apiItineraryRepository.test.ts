@@ -36,4 +36,30 @@ describe("API ItineraryRepository", () => {
 
     await expect(repository.getDay("2027-02-20")).rejects.toMatchObject({ code: "RESOURCE_NOT_FOUND" });
   });
+
+  it("saves the complete ordered item batch with private access and idempotency", async () => {
+    const savedDay = { ...validDay, version: 2 };
+    const fetcher = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async () => Response.json(savedDay));
+    const repository = new ApiItineraryRepository("https://api.example", "private-token", fetcher);
+    const items = [{
+      id: "20000000-0000-4000-8000-000000000001",
+      title: "中央咖啡館午餐",
+      note: "預留一小時",
+      category: "food" as const,
+      sortOrder: 0,
+    }];
+
+    await expect(repository.saveDayItems("2027-02-06", items, 1)).resolves.toEqual(savedDay);
+    const [url, init] = fetcher.mock.calls[0];
+    expect(url).toBe("https://api.example/v1/days/2027-02-06");
+    expect(init).toMatchObject({
+      method: "PUT",
+      headers: expect.objectContaining({
+        authorization: "Bearer private-token",
+        "content-type": "application/json",
+        "idempotency-key": expect.stringMatching(/^[0-9a-f-]{36}$/),
+      }),
+      body: JSON.stringify({ expectedVersion: 1, items }),
+    });
+  });
 });

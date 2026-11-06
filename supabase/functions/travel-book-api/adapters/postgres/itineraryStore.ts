@@ -1,4 +1,4 @@
-import { parseTripDay, type TripDay } from "../../../../../packages/contracts/src/index.ts";
+import { parseTripDay, type SaveTripDayItem, type TripDay } from "../../../../../packages/contracts/src/index.ts";
 import type { ItineraryStore } from "../../handler.ts";
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
@@ -27,6 +27,32 @@ export class SupabaseItineraryStore implements ItineraryStore {
 
     const payload: unknown = await response.json();
     if (payload === null) return null;
+    const parsed = parseTripDay(payload);
+    if (!parsed.ok) throw new Error("ITINERARY_STORE_INVALID_RESPONSE");
+    return parsed.value;
+  }
+
+  async saveDayItems(
+    tripId: string,
+    date: string,
+    items: readonly SaveTripDayItem[],
+    expectedVersion: number,
+    idempotencyKey: string,
+  ): Promise<TripDay> {
+    const response = await this.fetcher(`${this.baseUrl}/rest/v1/rpc/save_trip_day_items`, {
+      method: "POST",
+      headers: { apikey: this.secretKey, "content-type": "application/json" },
+      body: JSON.stringify({
+        p_trip_id: tripId,
+        p_date: date,
+        p_items: items,
+        p_expected_version: expectedVersion,
+        p_idempotency_key: idempotencyKey,
+      }),
+    });
+    if (!response.ok) throw new ItineraryStoreRequestError(response.status);
+
+    const payload: unknown = await response.json();
     const parsed = parseTripDay(payload);
     if (!parsed.ok) throw new Error("ITINERARY_STORE_INVALID_RESPONSE");
     return parsed.value;

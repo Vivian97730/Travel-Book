@@ -1,4 +1,11 @@
-import type { AccessVerifyResponse, ApiErrorCode, TripDay } from "../../../packages/contracts/src/index.ts";
+import {
+  parseMutationMetadata,
+  parseSaveTripDayRequest,
+  type AccessVerifyResponse,
+  type ApiErrorCode,
+  type SaveTripDayItem,
+  type TripDay,
+} from "../../../packages/contracts/src/index.ts";
 
 export interface AccessStore {
   verify(token: string): Promise<AccessVerifyResponse | null>;
@@ -6,6 +13,13 @@ export interface AccessStore {
 
 export interface ItineraryStore {
   getDay(tripId: string, date: string): Promise<TripDay | null>;
+  saveDayItems(
+    tripId: string,
+    date: string,
+    items: readonly SaveTripDayItem[],
+    expectedVersion: number,
+    idempotencyKey: string,
+  ): Promise<TripDay>;
 }
 
 export interface HandlerDependencies {
@@ -93,6 +107,37 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
         : day
           ? json(day, 200, headers)
           : apiError("RESOURCE_NOT_FOUND", "找不到指定日期的行程。", requestId, 404, headers);
+    } catch (error) {
+      upstreamStatus = safeUpstreamStatus(error);
+      response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if (request.method === "PUT" && /\/v1\/days\/\d{4}-\d{2}-\d{2}$/.test(url.pathname)) {
+    const token = bearerToken(request);
+    const date = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
+    try {
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      if (!verified) {
+        response = apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers);
+      } else {
+        const body: unknown = await request.json().catch(() => null);
+        const parsed = parseSaveTripDayRequest(body);
+        const metadata = parseMutationMetadata({
+          expectedVersion: parsed.ok ? parsed.value.expectedVersion : null,
+          idempotencyKey: request.headers.get("idempotency-key"),
+        });
+        if (!parsed.ok || !metadata.ok) {
+          response = apiError("VALIDATION_FAILED", "行程保存資料格式不正確。", requestId, 422, headers);
+        } else {
+          const saved = await dependencies.itineraryStore.saveDayItems(
+            verified.trip.id,
+            date,
+            parsed.value.items,
+            parsed.value.expectedVersion,
+            metadata.value.idempotencyKey,
+          );
+          response = json(saved, 200, headers);
+        }
+      }
     } catch (error) {
       upstreamStatus = safeUpstreamStatus(error);
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);

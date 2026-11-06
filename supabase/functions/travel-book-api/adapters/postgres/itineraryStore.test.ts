@@ -54,4 +54,43 @@ describe("Supabase itinerary store", () => {
     await expect(new SupabaseItineraryStore("https://project.supabase.co", "secret", invalid).getDay(tripId, "2027-02-06"))
       .rejects.toThrow("ITINERARY_STORE_INVALID_RESPONSE");
   });
+
+  it("saves one complete item batch through the private transaction RPC", async () => {
+    const savedDay = {
+      date: "2027-02-06",
+      weekday: "六",
+      city: "維也納",
+      summary: "今天步調舒緩，景點集中在市中心。",
+      version: 2,
+      items: [],
+    };
+    const fetcher = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async () => Response.json(savedDay));
+    const store = new SupabaseItineraryStore("https://project.supabase.co", "secret-key", fetcher);
+    const items = [{
+      id: "20000000-0000-4000-8000-000000000001",
+      title: "中央咖啡館午餐",
+      note: "預留一小時",
+      category: "food" as const,
+      sortOrder: 0,
+    }];
+
+    await expect(store.saveDayItems(
+      tripId,
+      "2027-02-06",
+      items,
+      1,
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    )).resolves.toEqual(savedDay);
+    expect(fetcher).toHaveBeenCalledWith("https://project.supabase.co/rest/v1/rpc/save_trip_day_items", {
+      method: "POST",
+      headers: { apikey: "secret-key", "content-type": "application/json" },
+      body: JSON.stringify({
+        p_trip_id: tripId,
+        p_date: "2027-02-06",
+        p_items: items,
+        p_expected_version: 1,
+        p_idempotency_key: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      }),
+    });
+  });
 });

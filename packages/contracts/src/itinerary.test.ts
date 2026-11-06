@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTripDay } from "./itinerary";
+import { parseSaveTripDayRequest, parseTripDay } from "./itinerary";
 
 const validDay = {
   date: "2027-02-06",
@@ -57,6 +57,42 @@ describe("trip day contract", () => {
         { path: "items[0].sortOrder", message: "排序必須是非負整數。" },
         { path: "items[0].place.latitude", message: "緯度必須介於 -90 與 90 之間。" },
       ],
+    });
+  });
+});
+
+describe("save trip day request contract", () => {
+  it("accepts one ordered item batch without exposing place writes", () => {
+    const request = {
+      expectedVersion: 3,
+      items: [{
+        id: "20000000-0000-4000-8000-000000000001",
+        title: "中央咖啡館午餐",
+        note: "預留一小時",
+        category: "food",
+        sortOrder: 0,
+      }],
+    };
+
+    expect(parseSaveTripDayRequest(request)).toEqual({ ok: true, value: request });
+  });
+
+  it("rejects invalid versions, item ids, text, categories, and non-contiguous ordering", () => {
+    const result = parseSaveTripDayRequest({
+      expectedVersion: 0,
+      items: [{ id: "new-item", title: " ", note: "", category: "other", sortOrder: 2 }],
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      issues: expect.arrayContaining([
+        { path: "expectedVersion", message: "預期版本必須是正整數。" },
+        { path: "items[0].id", message: "行程項目 ID 格式不正確。" },
+        { path: "items[0].title", message: "行程名稱不得為空。" },
+        { path: "items[0].note", message: "行程內容不得為空。" },
+        { path: "items[0].category", message: "行程分類不支援。" },
+        { path: "items[0].sortOrder", message: "行程排序必須從 0 連續編號。" },
+      ]),
     });
   });
 });

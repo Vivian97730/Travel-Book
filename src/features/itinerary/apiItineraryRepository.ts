@@ -1,4 +1,4 @@
-import type { TripDay } from "@travel-book/contracts";
+import type { SaveTripDayItem, TripDay } from "@travel-book/contracts";
 import { ApiClient } from "../../shared/api/apiClient";
 import type { ItineraryRepository } from "./itineraryRepository";
 
@@ -13,5 +13,9 @@ export class ApiItineraryRepository implements ItineraryRepository {
 
   getDay(date: string): Promise<TripDay> {
     return this.client.getTripDay(this.accessToken, date);
+  }
+
+  saveDayItems(date: string, items: readonly SaveTripDayItem[], expectedVersion: number): Promise<TripDay> {
+    return this.client.saveTripDayItems(this.accessToken, date, items, expectedVersion);
   }
 }

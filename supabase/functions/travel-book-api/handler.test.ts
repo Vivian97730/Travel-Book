@@ -25,6 +25,14 @@ function dependencies(verify = vi.fn(async () => verifiedAccess)): HandlerDepend
         version: 1,
         items: [],
       })),
+      saveDayItems: vi.fn(async (_tripId, date) => ({
+        date,
+        weekday: "六",
+        city: "維也納",
+        summary: "今天步調舒緩，景點集中在市中心。",
+        version: 2,
+        items: [],
+      })),
     },
     allowedOrigins: new Set(["https://vivian97730.github.io", "http://localhost:5173"]),
     log: vi.fn(),
@@ -68,6 +76,38 @@ describe("travel-book-api handler", () => {
     expect(deps.itineraryStore.getDay).toHaveBeenCalledWith(
       "11111111-1111-4111-8111-111111111111",
       "2027-02-06",
+    );
+  });
+
+  it("saves one complete itinerary batch after verifying private access", async () => {
+    const deps = dependencies();
+    const idempotencyKey = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const items = [{
+      id: "20000000-0000-4000-8000-000000000001",
+      title: "中央咖啡館午餐",
+      note: "預留一小時",
+      category: "food",
+      sortOrder: 0,
+    }];
+    const response = await handleRequest(new Request("http://localhost/v1/days/2027-02-06", {
+      method: "PUT",
+      headers: {
+        authorization: "Bearer valid-private-token",
+        "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+      },
+      body: JSON.stringify({ expectedVersion: 1, items }),
+    }), deps);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ date: "2027-02-06", version: 2 });
+    expect(deps.accessStore.verify).toHaveBeenCalledWith("valid-private-token");
+    expect(deps.itineraryStore.saveDayItems).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      "2027-02-06",
+      items,
+      1,
+      idempotencyKey,
     );
   });
 
