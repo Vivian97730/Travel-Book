@@ -72,8 +72,8 @@ export function ItineraryPage({ repository, trip }: { repository: ItineraryRepos
   const [saving, setSaving] = useState(false);
   const [saveFailure, setSaveFailure] = useState<ItinerarySaveFailure | null>(null);
   const dates = useMemo(
-    () => buildDateWindow(trip.startDate, trip.endDate, selectedDate),
-    [selectedDate, trip.endDate, trip.startDate],
+    () => buildDateWindow(trip.startDate, trip.endDate),
+    [trip.endDate, trip.startDate],
   );
 
   useEffect(() => {

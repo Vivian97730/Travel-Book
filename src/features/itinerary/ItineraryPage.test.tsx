@@ -10,16 +10,18 @@ import {
 import { sampleTripDays } from "./sampleTripDays";
 
 describe("itinerary page public behavior", () => {
-  it("renders at most five dates and keeps items without coordinates visible", () => {
+  it("renders the full trip date range and keeps items without coordinates visible", () => {
     const html = renderToStaticMarkup(<ItineraryDayView
       day={sampleTripDays[1]}
-      dates={["2027-02-05", "2027-02-06", "2027-02-07", "2027-02-08", "2027-02-09"]}
+      dates={["2027-02-05", "2027-02-06", "2027-02-07", "2027-02-08", "2027-02-09", "2027-02-10", "2027-02-11", "2027-02-12", "2027-02-13", "2027-02-14", "2027-02-15"]}
       selectedDate="2027-02-06"
       onSelectDate={() => undefined}
       onViewItem={() => undefined}
     />);
 
-    expect((html.match(/class="date-button"/g) ?? [])).toHaveLength(5);
+    expect((html.match(/class="date-button"/g) ?? [])).toHaveLength(11);
+    expect(html).toContain("02/05");
+    expect(html).toContain("02/15");
     expect(html).toContain("搭地鐵前往美泉宮");
     expect(html).toContain("維也納舊城散步");
     expect(html).toContain("Schloss Schonbrunn");
