@@ -341,8 +341,57 @@ function MapIllustration({ count }: { count: number }) {
   return <svg viewBox="0 0 600 520" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="600" height="520" fill="#dce7dc" /><g fill="none" stroke="#fffdf8" strokeWidth="18"><path d="M-40 108c120 40 178-48 287-17s182 18 383-49" /><path d="M40 502c48-124 110-158 209-196s170-97 202-330" /><path d="M-30 355c105-45 197-36 281 13s176 54 390 13" /></g><g fill="none" stroke="#c5d5c6" strokeWidth="5"><path d="M20 228c164 26 238-42 348-35s160 41 254 8" /><path d="M128-20c19 120 90 188 78 291s-5 159 35 269" /></g><path d="M102 424c34-93 137-59 166-162s92-128 207-115" fill="none" stroke="#e9785d" strokeWidth="7" strokeLinecap="round" strokeDasharray="10 13" />{markers.map(([x, y], index) => <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}><circle r="19" fill="#274e43" /><text textAnchor="middle" y="6" fill="white" fontFamily="sans-serif" fontSize="16" fontWeight="700">{index + 1}</text></g>)}</svg>;
 }
 
+function useDialogAccessibility(onClose: () => void) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusableSelector = "button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])";
+    const focusable = () => [...dialog.querySelectorAll<HTMLElement>(focusableSelector)]
+      .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+
+    if (!dialog.contains(document.activeElement)) {
+      (dialog.querySelector<HTMLElement>("[data-dialog-initial-focus]") ?? focusable()[0])?.focus();
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!dialog?.contains(document.activeElement)) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      if (!elements.length) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, []);
+
+  return dialogRef;
+}
+
 function ItineraryDialog({ item, onClose }: { item: ItineraryItem; onClose(): void }) {
-  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="itinerary-dialog-title"><div className="dialog-form"><header className="dialog-head"><h2 id="itinerary-dialog-title">{item.title}</h2><button className="icon-button" type="button" onClick={onClose} aria-label="關閉"><Icon name="close" size={20} /></button></header><section className="itinerary-detail"><p>{item.note}</p><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onClose}>關閉</button><a className="primary-button" href={googleMapsSearchUrl(item.title)} target="_blank" rel="noreferrer"><Icon name="location" size={17} />導航</a></div></section></div></section></div>;
+  const dialogRef = useDialogAccessibility(onClose);
+  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="itinerary-dialog-title"><div className="dialog-form"><header className="dialog-head"><h2 id="itinerary-dialog-title">{item.title}</h2><button className="icon-button" type="button" onClick={onClose} aria-label="關閉"><Icon name="close" size={20} /></button></header><section className="itinerary-detail"><p>{item.note}</p><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onClose}>關閉</button><a className="primary-button" href={googleMapsSearchUrl(item.title)} target="_blank" rel="noreferrer"><Icon name="location" size={17} />導航</a></div></section></div></section></div>;
 }
 
 export function ItineraryItemFormDialog({ item, onCancel, onSubmit }: {
@@ -350,6 +399,8 @@ export function ItineraryItemFormDialog({ item, onCancel, onSubmit }: {
   onCancel(): void;
   onSubmit(value: Pick<ItineraryItem, "title" | "note" | "category">): void;
 }) {
+  const dialogRef = useDialogAccessibility(onCancel);
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -360,5 +411,5 @@ export function ItineraryItemFormDialog({ item, onCancel, onSubmit }: {
     });
   }
 
-  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}><section className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="itinerary-edit-title"><form className="dialog-form" onSubmit={submit}><header className="dialog-head"><h2 id="itinerary-edit-title">{item ? "修改行程" : "新增行程"}</h2><button className="icon-button" type="button" onClick={onCancel} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="itinerary-title">行程名稱</label><input className="field" id="itinerary-title" name="title" required maxLength={80} defaultValue={item?.title ?? ""} autoFocus /></div><div className="field-group"><label htmlFor="itinerary-note">內容</label><textarea className="field" id="itinerary-note" name="note" required maxLength={300} defaultValue={item?.note ?? ""} /></div><div className="field-group"><label htmlFor="itinerary-category">類別</label><select className="field" id="itinerary-category" name="category" defaultValue={item?.category ?? "transit"}><option value="transit">交通</option><option value="sight">景點</option><option value="food">食物</option><option value="stay">住宿</option><option value="shopping">逛街</option></select></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onCancel}>取消</button><button className="primary-button" type="submit">儲存</button></div></form></section></div>;
+  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="itinerary-edit-title"><form className="dialog-form" onSubmit={submit}><header className="dialog-head"><h2 id="itinerary-edit-title">{item ? "修改行程" : "新增行程"}</h2><button className="icon-button" type="button" onClick={onCancel} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="itinerary-title">行程名稱</label><input className="field" id="itinerary-title" name="title" required maxLength={80} defaultValue={item?.title ?? ""} data-dialog-initial-focus /></div><div className="field-group"><label htmlFor="itinerary-note">內容</label><textarea className="field" id="itinerary-note" name="note" required maxLength={300} defaultValue={item?.note ?? ""} /></div><div className="field-group"><label htmlFor="itinerary-category">類別</label><select className="field" id="itinerary-category" name="category" defaultValue={item?.category ?? "transit"}><option value="transit">交通</option><option value="sight">景點</option><option value="food">食物</option><option value="stay">住宿</option><option value="shopping">逛街</option></select></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onCancel}>取消</button><button className="primary-button" type="submit">儲存</button></div></form></section></div>;
 }

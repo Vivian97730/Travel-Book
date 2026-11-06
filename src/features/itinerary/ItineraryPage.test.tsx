@@ -72,6 +72,8 @@ describe("itinerary page public behavior", () => {
     expect(html).toContain("類別");
     expect(html).toContain("中央咖啡館午餐");
     expect(html).toContain("食物");
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain("data-dialog-initial-focus");
   });
 
   it("offers reload for version conflicts and retry for other save failures", () => {
