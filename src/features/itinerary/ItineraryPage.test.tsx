@@ -72,6 +72,11 @@ describe("itinerary page public behavior", () => {
     expect(html).toContain("類別");
     expect(html).toContain("中央咖啡館午餐");
     expect(html).toContain("食物");
+    expect(html).toContain('class="field itinerary-category-field"');
+    expect(html).toContain('name="category"');
+    expect(html).toContain('<option value="transit">交通</option>');
+    expect(html).toContain('<option value="shopping">逛街</option>');
+    expect(html).toContain('<option value="food" selected="">食物</option>');
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain("data-dialog-initial-focus");
   });
