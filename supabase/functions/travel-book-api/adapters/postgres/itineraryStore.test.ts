@@ -93,4 +93,30 @@ describe("Supabase itinerary store", () => {
       }),
     });
   });
+
+  it("preserves a database version conflict without exposing database details", async () => {
+    const fetcher = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async () => new Response(
+      JSON.stringify({
+        code: "P0001",
+        details: "sensitive database details",
+        hint: null,
+        message: "VERSION_CONFLICT",
+      }),
+      { status: 400 },
+    ));
+    const store = new SupabaseItineraryStore("https://project.supabase.co", "secret-key", fetcher);
+
+    await expect(store.saveDayItems(
+      tripId,
+      "2027-02-06",
+      [],
+      1,
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    )).rejects.toMatchObject({
+      name: "ItineraryStoreRequestError",
+      status: 400,
+      code: "VERSION_CONFLICT",
+      message: "ITINERARY_STORE_UNAVAILABLE",
+    });
+  });
 });

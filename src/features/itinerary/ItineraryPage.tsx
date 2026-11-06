@@ -16,6 +16,31 @@ export function googleMapsSearchUrl(name: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}`;
 }
 
+export interface ItinerarySaveFailure {
+  kind: "conflict" | "retry";
+  message: string;
+  actionLabel: "重新載入" | "重試保存";
+}
+
+export function itinerarySaveFailureFor(error: unknown): ItinerarySaveFailure {
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? error.code
+    : error instanceof Error
+      ? error.message
+      : null;
+  return code === "VERSION_CONFLICT"
+    ? {
+        kind: "conflict",
+        message: "資料已由其他裝置更新，草稿仍保留；請重新載入最新行程。",
+        actionLabel: "重新載入",
+      }
+    : {
+        kind: "retry",
+        message: "目前無法保存行程，草稿仍保留；請稍後重試。",
+        actionLabel: "重試保存",
+      };
+}
+
 function dateInTimezone(timezone: string, now = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
@@ -45,7 +70,7 @@ export function ItineraryPage({ repository, trip }: { repository: ItineraryRepos
   const [draftItems, setDraftItems] = useState<ItineraryItem[]>([]);
   const [formItem, setFormItem] = useState<ItineraryItem | null | undefined>(undefined);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveFailure, setSaveFailure] = useState<ItinerarySaveFailure | null>(null);
   const dates = useMemo(
     () => buildDateWindow(trip.startDate, trip.endDate, selectedDate),
     [selectedDate, trip.endDate, trip.startDate],
@@ -59,7 +84,7 @@ export function ItineraryPage({ repository, trip }: { repository: ItineraryRepos
     setEditing(false);
     setDraftItems([]);
     setFormItem(undefined);
-    setSaveError(null);
+    setSaveFailure(null);
     repository.getDay(selectedDate).then((result) => {
       if (active) setDay(result);
     }).catch(() => {
@@ -81,12 +106,12 @@ export function ItineraryPage({ repository, trip }: { repository: ItineraryRepos
   function beginEditing() {
     setDraftItems(structuredClone(day!.items));
     setEditing(true);
-    setSaveError(null);
+    setSaveFailure(null);
   }
 
   async function finishEditing() {
     setSaving(true);
-    setSaveError(null);
+    setSaveFailure(null);
     const items: SaveTripDayItem[] = draftItems.map(({ id, title, note, category }, sortOrder) => ({
       id,
       title,
@@ -99,8 +124,27 @@ export function ItineraryPage({ repository, trip }: { repository: ItineraryRepos
       setDay(saved);
       setDraftItems([]);
       setEditing(false);
+    } catch (caught) {
+      setSaveFailure(itinerarySaveFailureFor(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function reloadAfterConflict() {
+    setSaving(true);
+    try {
+      const refreshed = await repository.getDay(day!.date);
+      setDay(refreshed);
+      setDraftItems([]);
+      setEditing(false);
+      setSaveFailure(null);
     } catch {
-      setSaveError("目前無法保存行程，請稍後再試。");
+      setSaveFailure({
+        kind: "conflict",
+        message: "目前無法重新載入最新行程，草稿仍保留；請稍後再試。",
+        actionLabel: "重新載入",
+      });
     } finally {
       setSaving(false);
     }
@@ -155,10 +199,27 @@ export function ItineraryPage({ repository, trip }: { repository: ItineraryRepos
       onDeleteItem={deleteDraftItem}
       onReorderItem={reorderDraftItem}
     />
-    {saveError && <p className="itinerary-save-error" role="alert">{saveError}</p>}
+    {saveFailure && <ItinerarySaveRecovery
+      failure={saveFailure}
+      busy={saving}
+      onRecover={saveFailure.kind === "conflict" ? reloadAfterConflict : finishEditing}
+    />}
     {viewingItem && <ItineraryDialog item={viewingItem} onClose={() => setViewingItem(null)} />}
     {formItem !== undefined && <ItineraryItemFormDialog item={formItem} onCancel={() => setFormItem(undefined)} onSubmit={saveDraftItem} />}
   </>;
+}
+
+export function ItinerarySaveRecovery({ failure, busy, onRecover }: {
+  failure: ItinerarySaveFailure;
+  busy: boolean;
+  onRecover(): void;
+}) {
+  return <section className="itinerary-save-error" aria-label="行程保存狀態">
+    <p role="alert">{failure.message}</p>
+    <button className="secondary-button" type="button" disabled={busy} onClick={onRecover}>
+      {failure.actionLabel}
+    </button>
+  </section>;
 }
 
 export function ItineraryDayView({

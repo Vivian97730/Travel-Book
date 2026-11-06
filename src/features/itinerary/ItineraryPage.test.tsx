@@ -1,6 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ItineraryDayView, ItineraryItemFormDialog, googleMapsSearchUrl } from "./ItineraryPage";
+import {
+  ItineraryDayView,
+  ItineraryItemFormDialog,
+  ItinerarySaveRecovery,
+  googleMapsSearchUrl,
+  itinerarySaveFailureFor,
+} from "./ItineraryPage";
 import { sampleTripDays } from "./sampleTripDays";
 
 describe("itinerary page public behavior", () => {
@@ -66,5 +72,32 @@ describe("itinerary page public behavior", () => {
     expect(html).toContain("類別");
     expect(html).toContain("中央咖啡館午餐");
     expect(html).toContain("食物");
+  });
+
+  it("offers reload for version conflicts and retry for other save failures", () => {
+    const conflict = itinerarySaveFailureFor(Object.assign(new Error("request failed"), {
+      code: "VERSION_CONFLICT",
+    }));
+    const unavailable = itinerarySaveFailureFor(new Error("network unavailable"));
+
+    expect(conflict).toMatchObject({ kind: "conflict", actionLabel: "重新載入" });
+    expect(unavailable).toMatchObject({ kind: "retry", actionLabel: "重試保存" });
+    expect(conflict.message).toContain("草稿仍保留");
+    expect(unavailable.message).toContain("草稿仍保留");
+
+    const conflictHtml = renderToStaticMarkup(<ItinerarySaveRecovery
+      failure={conflict}
+      busy={false}
+      onRecover={() => undefined}
+    />);
+    const unavailableHtml = renderToStaticMarkup(<ItinerarySaveRecovery
+      failure={unavailable}
+      busy={false}
+      onRecover={() => undefined}
+    />);
+
+    expect(conflictHtml).toContain("重新載入");
+    expect(unavailableHtml).toContain("重試保存");
+    expect(conflictHtml).toContain('role="alert"');
   });
 });

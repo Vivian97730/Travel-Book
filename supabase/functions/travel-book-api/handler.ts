@@ -71,6 +71,19 @@ function safeUpstreamStatus(error: unknown): number | undefined {
     : undefined;
 }
 
+function safeItineraryStoreCode(error: unknown): "RESOURCE_NOT_FOUND" | "VERSION_CONFLICT" | "VALIDATION_FAILED" | undefined {
+  if (
+    typeof error !== "object"
+    || error === null
+    || !("code" in error)
+    || !("message" in error)
+    || error.message !== "ITINERARY_STORE_UNAVAILABLE"
+  ) return undefined;
+  return error.code === "RESOURCE_NOT_FOUND" || error.code === "VERSION_CONFLICT" || error.code === "VALIDATION_FAILED"
+    ? error.code
+    : undefined;
+}
+
 export async function handleRequest(request: Request, dependencies: HandlerDependencies): Promise<Response> {
   const url = new URL(request.url);
   const requestId = requestIdFor(request);
@@ -140,7 +153,14 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
       }
     } catch (error) {
       upstreamStatus = safeUpstreamStatus(error);
-      response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+      const storeCode = safeItineraryStoreCode(error);
+      response = storeCode === "VERSION_CONFLICT"
+        ? apiError("VERSION_CONFLICT", "資料已由其他裝置更新，請重新載入。", requestId, 409, headers)
+        : storeCode === "RESOURCE_NOT_FOUND"
+          ? apiError("RESOURCE_NOT_FOUND", "找不到指定日期的行程。", requestId, 404, headers)
+          : storeCode === "VALIDATION_FAILED"
+            ? apiError("VALIDATION_FAILED", "行程保存資料格式不正確。", requestId, 422, headers)
+            : apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
     }
   } else {
     response = apiError("RESOURCE_NOT_FOUND", "找不到指定的介面。", requestId, 404, headers);

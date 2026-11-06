@@ -62,4 +62,20 @@ describe("API ItineraryRepository", () => {
       body: JSON.stringify({ expectedVersion: 1, items }),
     });
   });
+
+  it("preserves the stable version-conflict code for recovery UI", async () => {
+    const fetcher = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async () => Response.json({
+      error: {
+        code: "VERSION_CONFLICT",
+        message: "資料已由其他裝置更新，請重新載入。",
+        requestId: crypto.randomUUID(),
+        details: {},
+      },
+    }, { status: 409 }));
+    const repository = new ApiItineraryRepository("https://api.example", "private-token", fetcher);
+
+    await expect(repository.saveDayItems("2027-02-06", [], 1)).rejects.toMatchObject({
+      code: "VERSION_CONFLICT",
+    });
+  });
 });

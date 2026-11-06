@@ -89,10 +89,27 @@
 }
 
 .itinerary-save-error {
-  width: min(calc(100% - 2rem), 70rem);
-  margin: 0 auto 6rem;
+  position: fixed;
+  z-index: 60;
+  bottom: calc(var(--nav-height) + 1.75rem + env(safe-area-inset-bottom));
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  width: min(calc(100% - 2rem), 30rem);
+  margin: 0;
+  padding: 0.9rem 1rem;
+  transform: translateX(-50%);
+  border: 1px solid rgba(36, 40, 39, 0.08);
+  border-radius: var(--radius-panel);
+  background: var(--card);
+  box-shadow: var(--shadow);
   color: var(--danger);
   text-align: center;
+}
+
+.itinerary-save-error p {
+  margin: 0;
 }
 
 button:disabled {
@@ -107,5 +124,11 @@ button:disabled {
 
   .section-actions {
     flex-direction: column-reverse;
+  }
+}
+
+@media (min-width: 62rem) {
+  .itinerary-save-error {
+    bottom: 1rem;
   }
 }

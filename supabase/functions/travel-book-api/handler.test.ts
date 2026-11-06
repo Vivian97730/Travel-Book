@@ -111,6 +111,38 @@ describe("travel-book-api handler", () => {
     );
   });
 
+  it("returns a stable conflict when another device already saved the expected version", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.itineraryStore.saveDayItems).mockRejectedValue(Object.assign(
+      new Error("ITINERARY_STORE_UNAVAILABLE"),
+      { status: 400, code: "VERSION_CONFLICT" },
+    ));
+    const response = await handleRequest(new Request("http://localhost/v1/days/2027-02-06", {
+      method: "PUT",
+      headers: {
+        authorization: "Bearer valid-private-token",
+        "content-type": "application/json",
+        "idempotency-key": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      },
+      body: JSON.stringify({ expectedVersion: 1, items: [] }),
+    }), deps);
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(parseApiError(body)).toMatchObject({
+      ok: true,
+      value: {
+        error: {
+          code: "VERSION_CONFLICT",
+          message: "資料已由其他裝置更新，請重新載入。",
+          details: {},
+        },
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain("ITINERARY_STORE_UNAVAILABLE");
+    expect(deps.log).toHaveBeenCalledWith(expect.objectContaining({ status: 409, upstreamStatus: 400 }));
+  });
+
   it("does not query itinerary storage when private access is denied", async () => {
     const deps = dependencies(vi.fn(async () => null));
     const response = await handleRequest(new Request("http://localhost/v1/days/2027-02-06", {

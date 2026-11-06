@@ -4,10 +4,24 @@ import type { ItineraryStore } from "../../handler.ts";
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
 export class ItineraryStoreRequestError extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly code?: "RESOURCE_NOT_FOUND" | "VERSION_CONFLICT" | "VALIDATION_FAILED",
+  ) {
     super("ITINERARY_STORE_UNAVAILABLE");
     this.name = "ItineraryStoreRequestError";
   }
+}
+
+async function requestError(response: Response): Promise<ItineraryStoreRequestError> {
+  const body: unknown = await response.json().catch(() => null);
+  const message = typeof body === "object" && body !== null && "message" in body
+    ? body.message
+    : null;
+  const code = message === "RESOURCE_NOT_FOUND" || message === "VERSION_CONFLICT" || message === "VALIDATION_FAILED"
+    ? message
+    : undefined;
+  return new ItineraryStoreRequestError(response.status, code);
 }
 
 export class SupabaseItineraryStore implements ItineraryStore {
@@ -23,7 +37,7 @@ export class SupabaseItineraryStore implements ItineraryStore {
       headers: { apikey: this.secretKey, "content-type": "application/json" },
       body: JSON.stringify({ p_trip_id: tripId, p_date: date }),
     });
-    if (!response.ok) throw new ItineraryStoreRequestError(response.status);
+    if (!response.ok) throw await requestError(response);
 
     const payload: unknown = await response.json();
     if (payload === null) return null;
@@ -50,7 +64,7 @@ export class SupabaseItineraryStore implements ItineraryStore {
         p_idempotency_key: idempotencyKey,
       }),
     });
-    if (!response.ok) throw new ItineraryStoreRequestError(response.status);
+    if (!response.ok) throw await requestError(response);
 
     const payload: unknown = await response.json();
     const parsed = parseTripDay(payload);

@@ -2,7 +2,7 @@ begin;
 
 set local search_path = public, extensions, pg_catalog;
 
-select plan(21);
+select plan(24);
 
 select has_table('app_private', 'places', 'places table exists');
 select has_table('app_private', 'trip_days', 'trip days table exists');
@@ -79,6 +79,31 @@ select is(
   (select version from app_private.trip_days where id = '10000000-0000-4000-8000-000000000002'),
   2::bigint,
   'idempotent retry does not increment the version again'
+);
+
+select throws_ok(
+  $$
+    select public.save_trip_day_items(
+      '11111111-1111-4111-8111-111111111111',
+      '2027-02-06',
+      '[{"id":"20000000-0000-4000-8000-000000000006","title":"過期裝置內容","note":"不得覆蓋新資料","category":"sight","sortOrder":0}]'::jsonb,
+      1,
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    )
+  $$,
+  'P0001',
+  'VERSION_CONFLICT',
+  'a second device cannot save the same stale version'
+);
+select is(
+  (select version from app_private.trip_days where id = '10000000-0000-4000-8000-000000000002'),
+  2::bigint,
+  'version conflict leaves the saved version unchanged'
+);
+select is(
+  public.get_trip_day('11111111-1111-4111-8111-111111111111', '2027-02-06')->'items'->0->>'title',
+  '中央咖啡館早午餐',
+  'version conflict leaves the previously saved item batch unchanged'
 );
 
 select * from finish();
