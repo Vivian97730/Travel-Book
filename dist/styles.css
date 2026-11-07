@@ -750,7 +750,7 @@ textarea.field { min-height: 6rem; resize: vertical; }
   .date-field-row { grid-template-columns: minmax(0, 1fr); }
   .dialog { width: min(calc(100% - 1.25rem), 32rem); }
   .dialog-form { padding: 1.15rem; }
-  .dialog-actions .danger-button { width: 100%; margin-right: 0; }
+  .dialog-actions .danger-button { width: auto; margin-right: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
