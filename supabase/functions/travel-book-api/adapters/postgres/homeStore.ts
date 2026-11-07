@@ -38,7 +38,11 @@ function dateParts(value: unknown): RegExpMatchArray | null {
 function formatDateLabel(startDate: unknown, endDate: unknown): string {
   const start = dateParts(startDate);
   const end = dateParts(endDate);
-  return start && end ? `${start[1]}／${start[2]}／${start[3]}－${end[2]}／${end[3]}` : "";
+  if (!start || !end) return "";
+  const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
+  const startWeekday = weekdays[new Date(Date.UTC(Number(start[1]), Number(start[2]) - 1, Number(start[3]))).getUTCDay()];
+  const endWeekday = weekdays[new Date(Date.UTC(Number(end[1]), Number(end[2]) - 1, Number(end[3]))).getUTCDay()];
+  return `${start[2]}/${start[3]} (${startWeekday}) - ${end[2]}/${end[3]} (${endWeekday})`;
 }
 
 function formatDurationLabel(startDate: unknown, endDate: unknown): string {

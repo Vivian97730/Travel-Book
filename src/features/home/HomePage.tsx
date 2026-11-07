@@ -50,6 +50,14 @@ function createEmptyFact(): FactFormValue {
   return { icon: "info", title: "", content: "" };
 }
 
+export function tripRangeText(home: Pick<TripHome, "dateLabel" | "durationLabel">): string {
+  return `${home.dateLabel}・${home.durationLabel}`;
+}
+
+export function FlightDuration({ duration }: { duration: string }) {
+  return <span>{duration}</span>;
+}
+
 export function HomePage({ repository, online }: { repository: HomeRepository; online: boolean }) {
   const [home, setHome] = useState<TripHome | null>(null);
   const [facts, setFacts] = useState<TravelFact[]>([]);
@@ -181,7 +189,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
           <div className="hero-veil" />
           <div className="hero-copy">
             <div className="hero-heading">
-              <span className="trip-range">{home.dateLabel}・{home.durationLabel}</span>
+              <span className="trip-range">{tripRangeText(home)}</span>
               <h2 className="hero-title">{home.title}<small>{home.subtitle}</small></h2>
             </div>
             <div className="hero-details">
@@ -200,7 +208,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
               <article className="flight-row" key={flight.direction}>
                 <span className="flight-direction"><Icon name="plane" size={20} /></span>
                 <div>
-                  <div className="flight-title"><strong>{flight.direction}</strong><span>總旅行時間 {flight.duration}</span></div>
+                  <div className="flight-title"><strong>{flight.direction}</strong><FlightDuration duration={flight.duration} /></div>
                   <div className="flight-route">
                     {flight.legs.map((leg, index) => (
                       <div className="flight-segment" key={`${flight.direction}-${leg.airport}`}>

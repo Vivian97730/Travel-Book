@@ -53,7 +53,7 @@ describe("Supabase home store", () => {
     const store = new SupabaseHomeStore("https://project.supabase.co", "secret-key", fetcher);
 
     await expect(store.getHome(tripId)).resolves.toMatchObject({
-      dateLabel: "2027／02／05－02／15",
+      dateLabel: "02/05 (五) - 02/15 (一)",
       durationLabel: "11 天 10 夜",
       flights: [{ direction: "去程", duration: "19 小時 05 分" }],
       facts: [{ title: "和台灣的時差", sortOrder: 0 }],
