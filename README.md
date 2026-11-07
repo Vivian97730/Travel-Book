@@ -35,7 +35,7 @@ pnpm verify:prototype
 
 正式前端以 `#/access/<token>` 接收一次性的私人連結片段，保存後立即將網址清理為 `#/itinerary`。後續請求透過 `Authorization: Bearer <token>` 呼叫 `travel-book-api`；前端不直接連接 Database，也不持有 Supabase Secret Key。
 
-本機串接前，複製 `.env.example` 為不提交的 `.env.local`，並將 `VITE_API_BASE_URL` 設為完整 Edge Function 網址。沒有有效私人連結、無法連線或 Edge Function 尚未設定時，正式前端不會載入共享旅程內容。
+本機串接前，複製 `.env.example` 為不提交的 `.env.local`，並將 `VITE_API_BASE_URL` 設為完整 Edge Function 網址；地圖圖磚網址與署名可用 `VITE_MAP_TILE_*` 選填設定覆寫。沒有有效私人連結、無法連線或 Edge Function 尚未設定時，正式前端不會載入共享旅程內容。
 
 ## 頁面
 

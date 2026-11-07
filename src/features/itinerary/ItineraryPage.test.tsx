@@ -25,6 +25,8 @@ describe("itinerary page public behavior", () => {
     expect(html).toContain("搭地鐵前往美泉宮");
     expect(html).toContain("維也納舊城散步");
     expect(html).toContain("Schloss Schonbrunn");
+    expect(html).toContain('data-map-points="Schloss Schonbrunn|Cafe Central"');
+    expect(html).toContain('data-map-orders="2|3"');
     expect(html).toContain("編輯城市與行程");
     expect(html).not.toContain("新增行程");
     expect(html).not.toContain("修改中央咖啡館午餐");
@@ -59,6 +61,48 @@ describe("itinerary page public behavior", () => {
     expect(html).toContain("刪除中央咖啡館午餐");
     expect(html).toContain("拖曳中央咖啡館午餐");
     expect(html).not.toContain("檢視中央咖啡館午餐");
+  });
+
+  it("keeps the map in sync when draft items without coordinates are added or mapped items are deleted", () => {
+    const withAddedItem = structuredClone(sampleTripDays[1]);
+    withAddedItem.items.push({
+      id: "20000000-0000-4000-8000-000000000005",
+      title: "晚間音樂會",
+      note: "現場取票",
+      category: "sight",
+      sortOrder: withAddedItem.items.length,
+      place: null,
+    });
+    const addedHtml = renderToStaticMarkup(<ItineraryDayView
+      day={withAddedItem}
+      dates={["2027-02-06"]}
+      selectedDate="2027-02-06"
+      editing
+      onSelectDate={() => undefined}
+      onViewItem={() => undefined}
+    />);
+
+    expect(addedHtml).toContain("晚間音樂會");
+    expect(addedHtml).toContain('data-map-points="Schloss Schonbrunn|Cafe Central"');
+    expect(addedHtml).toContain("維也納・2 個地點");
+
+    const withDeletedMappedItem = structuredClone(withAddedItem);
+    withDeletedMappedItem.items = withDeletedMappedItem.items
+      .filter((item) => item.title !== "中央咖啡館午餐")
+      .map((item, sortOrder) => ({ ...item, sortOrder }));
+    const deletedHtml = renderToStaticMarkup(<ItineraryDayView
+      day={withDeletedMappedItem}
+      dates={["2027-02-06"]}
+      selectedDate="2027-02-06"
+      editing
+      onSelectDate={() => undefined}
+      onViewItem={() => undefined}
+    />);
+
+    expect(deletedHtml).toContain('data-map-points="Schloss Schonbrunn"');
+    expect(deletedHtml).toContain('data-map-orders="2"');
+    expect(deletedHtml).toContain("維也納・1 個地點");
+    expect(deletedHtml).not.toContain("Cafe Central");
   });
 
   it("renders the Prototype item fields for add and edit dialogs", () => {

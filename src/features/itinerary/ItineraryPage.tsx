@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent
 import type { AccessTripSummary, ItineraryCategory, ItineraryItem, SaveTripDayItem, TripDay } from "@travel-book/contracts";
 import { Icon, type IconName } from "../../components/Icon";
 import { buildDateWindow, chooseDefaultDate } from "./dateWindow";
+import { ItineraryMap, type ItineraryMapLocation } from "./ItineraryMap";
 import type { ItineraryRepository } from "./itineraryRepository";
 
 const categoryIcons: Record<ItineraryCategory, IconName> = {
@@ -56,7 +57,7 @@ function weekdayFor(date: string): string {
   return ["日", "一", "二", "三", "四", "五", "六"][new Date(`${date}T00:00:00Z`).getUTCDay()];
 }
 
-export function ItineraryPage({ repository, trip }: { repository: ItineraryRepository; trip: AccessTripSummary }) {
+export function ItineraryPage({ repository, trip, online = true }: { repository: ItineraryRepository; trip: AccessTripSummary; online?: boolean }) {
   const defaultDate = useMemo(
     () => chooseDefaultDate(dateInTimezone(trip.displayTimezone), trip.startDate, trip.endDate),
     [trip.displayTimezone, trip.endDate, trip.startDate],
@@ -189,6 +190,7 @@ export function ItineraryPage({ repository, trip }: { repository: ItineraryRepos
       day={visibleDay}
       dates={dates}
       selectedDate={selectedDate}
+      online={online}
       editing={editing}
       saving={saving}
       onSelectDate={setSelectedDate}
@@ -226,6 +228,7 @@ export function ItineraryDayView({
   day,
   dates,
   selectedDate,
+  online = true,
   editing = false,
   saving = false,
   onSelectDate,
@@ -239,6 +242,7 @@ export function ItineraryDayView({
   day: TripDay;
   dates: readonly string[];
   selectedDate: string;
+  online?: boolean;
   editing?: boolean;
   saving?: boolean;
   onSelectDate(date: string): void;
@@ -249,15 +253,24 @@ export function ItineraryDayView({
   onDeleteItem?(id: string): void;
   onReorderItem?(sourceId: string, targetId: string): void;
 }) {
-  const mappedItems = day.items.filter((item) => item.place !== null && item.place.latitude !== null && item.place.longitude !== null);
+  const mappedItems: ItineraryMapLocation[] = day.items.flatMap((item, index) => {
+    if (item.place === null || item.place.latitude === null || item.place.longitude === null) return [];
+    return [{
+      id: item.place.id,
+      name: item.place.name,
+      latitude: item.place.latitude,
+      longitude: item.place.longitude,
+      order: index + 1,
+    }];
+  });
   return <main id="main" className="screen">
     <header className="page-heading"><div><p className="eyebrow">Daily plan</p><h1>每日行程</h1></div></header>
     <section className="date-strip" aria-label="選擇日期">
       {dates.map((date) => <button className="date-button" type="button" key={date} onClick={() => onSelectDate(date)} aria-pressed={date === selectedDate}><span>週{weekdayFor(date)}</span><strong>{date.slice(5).replace("-", "/")}</strong></button>)}
     </section>
     <div className="itinerary-grid">
-      <section className="card map-card" data-map-provider="openstreetmap" data-map-points={mappedItems.map((item) => item.place!.name).join("|")} aria-label={`OpenStreetMap 每日地點地圖，${mappedItems.length} 個有座標地點`}>
-        <MapIllustration count={mappedItems.length} />
+      <section className="card map-card" data-map-provider="openstreetmap" data-map-points={mappedItems.map((item) => item.name).join("|")} aria-label={`OpenStreetMap 每日地點地圖，${mappedItems.length} 個有座標地點`}>
+        <ItineraryMap key={day.date} city={day.city} locations={mappedItems} online={online} />
         <span className="map-label">{day.city}・{mappedItems.length} 個地點</span>
         <a className="primary-button map-action" href={googleMapsSearchUrl(day.city)} target="_blank" rel="noreferrer"><Icon name="map" size={18} />開啟 Google Maps</a>
       </section>
@@ -334,11 +347,6 @@ function DragHandle({ item, previousItem, nextItem, onReorder }: {
       document.querySelectorAll(".is-drop-target").forEach((element) => element.classList.remove("is-drop-target"));
     }}
   ><Icon name="grip" size={20} /></span>;
-}
-
-function MapIllustration({ count }: { count: number }) {
-  const markers = [[102, 424], [268, 262], [475, 147], [390, 350], [180, 120]].slice(0, count);
-  return <svg viewBox="0 0 600 520" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="600" height="520" fill="#dce7dc" /><g fill="none" stroke="#fffdf8" strokeWidth="18"><path d="M-40 108c120 40 178-48 287-17s182 18 383-49" /><path d="M40 502c48-124 110-158 209-196s170-97 202-330" /><path d="M-30 355c105-45 197-36 281 13s176 54 390 13" /></g><g fill="none" stroke="#c5d5c6" strokeWidth="5"><path d="M20 228c164 26 238-42 348-35s160 41 254 8" /><path d="M128-20c19 120 90 188 78 291s-5 159 35 269" /></g><path d="M102 424c34-93 137-59 166-162s92-128 207-115" fill="none" stroke="#e9785d" strokeWidth="7" strokeLinecap="round" strokeDasharray="10 13" />{markers.map(([x, y], index) => <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}><circle r="19" fill="#274e43" /><text textAnchor="middle" y="6" fill="white" fontFamily="sans-serif" fontSize="16" fontWeight="700">{index + 1}</text></g>)}</svg>;
 }
 
 function useDialogAccessibility(onClose: () => void) {
