@@ -1,5 +1,7 @@
 begin;
 
+set local search_path = public, extensions, pg_catalog;
+
 select plan(3);
 
 select has_schema('app_private', 'app_private schema exists');

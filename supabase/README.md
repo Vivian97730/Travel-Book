@@ -4,7 +4,7 @@ This directory contains the Travel Book Edge Function, reproducible database mig
 
 The migrations create a private application schema, the stage 1 access tables, resource versions, token verification/reset/revocation functions, and browser-role restrictions. Raw private tokens are never stored in the database.
 
-Local commands after installing the Supabase CLI:
+Local commands after installing the Supabase CLI and Docker／Podman:
 
 ```bash
 supabase start
@@ -12,6 +12,20 @@ supabase db reset
 supabase test db
 supabase functions serve travel-book-api --no-verify-jwt
 ```
+
+## Database tests from Codex
+
+The Codex desktop environment used for this project does not provide Docker or Podman. Do not try `supabase start`, `supabase db reset`, or `supabase test db` there before testing the linked project; those commands will fail while trying to start a local stack or test runner.
+
+Run the pgTAP files directly against the linked hosted project instead. Every test file opens a transaction and rolls it back, so test data is not persisted:
+
+```bash
+supabase db query --file supabase/tests/private_schema_test.sql --remote --yes
+supabase db query --file supabase/tests/access_foundation_test.sql --remote --yes
+supabase db query --file supabase/tests/itinerary_read_model_test.sql --remote --yes
+```
+
+When another database test file is added, execute it with the same `supabase db query --file <path> --remote --yes` form. Confirm the target is the linked Travel Book project before proceeding, and report each file's final pgTAP assertion count.
 
 `verify_jwt` is disabled because Travel Book does not use Supabase Auth. Shared routes must validate the high-entropy private trip token inside `travel-book-api` before accessing data.
 

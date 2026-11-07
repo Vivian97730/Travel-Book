@@ -4,7 +4,10 @@ import { hashForRoute, parseAppHash, type Route } from "./app/routing";
 import { Icon, type IconName } from "./components/Icon";
 import { BrowserHomeRepository } from "./features/home/browserHomeRepository";
 import { HomePage } from "./features/home/HomePage";
+import { ApiItineraryRepository } from "./features/itinerary/apiItineraryRepository";
+import { ItineraryPage } from "./features/itinerary/ItineraryPage";
 import { ApiClient, ApiClientError } from "./shared/api/apiClient";
+import type { AccessVerifyResponse } from "@travel-book/contracts";
 
 const routeItems = [
   ["home", "home", "首頁"],
@@ -14,7 +17,11 @@ const routeItems = [
   ["lists", "list", "清單"],
 ] as const satisfies ReadonlyArray<readonly [Route, IconName, string]>;
 
-type AccessState = "checking" | "ready" | "missing" | "denied" | "offline" | "unconfigured" | "error";
+export type AccessState = "checking" | "ready" | "missing" | "denied" | "offline" | "unconfigured" | "error";
+
+export function shouldRenderVerifiedApp(state: AccessState, hasVerifiedAccess: boolean): boolean {
+  return hasVerifiedAccess && (state === "ready" || state === "offline" || state === "checking");
+}
 
 function routeFromCurrentHash(): Route {
   const parsed = parseAppHash(window.location.hash);
@@ -31,10 +38,15 @@ export default function App() {
     replaceUrl: (url) => window.history.replaceState(null, "", url),
   }) ?? accessStore.get());
   const [accessState, setAccessState] = useState<AccessState>("checking");
+  const [verifiedAccess, setVerifiedAccess] = useState<AccessVerifyResponse | null>(null);
   const [route, setRoute] = useState<Route>(routeFromCurrentHash);
   const [online, setOnline] = useState(navigator.onLine);
   const repository = useMemo(() => new BrowserHomeRepository(), []);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  const itineraryRepository = useMemo(
+    () => apiBaseUrl && accessToken ? new ApiItineraryRepository(apiBaseUrl, accessToken) : null,
+    [accessToken, apiBaseUrl],
+  );
 
   useEffect(() => {
     let active = true;
@@ -52,13 +64,17 @@ export default function App() {
     }
 
     setAccessState("checking");
-    new ApiClient(apiBaseUrl).verifyAccess(accessToken).then(() => {
-      if (active) setAccessState("ready");
+    new ApiClient(apiBaseUrl).verifyAccess(accessToken).then((verified) => {
+      if (active) {
+        setVerifiedAccess(verified);
+        setAccessState("ready");
+      }
     }).catch((error: unknown) => {
       if (!active) return;
       if (error instanceof ApiClientError && error.code === "ACCESS_DENIED") {
         accessStore.clear();
         setAccessToken(null);
+        setVerifiedAccess(null);
         setAccessState("denied");
       } else {
         setAccessState("error");
@@ -98,11 +114,13 @@ export default function App() {
     window.location.hash = hashForRoute(next);
   }
 
-  if (accessState !== "ready") return <AccessStatus state={accessState} online={online} />;
+  if (!verifiedAccess || !itineraryRepository || !shouldRenderVerifiedApp(accessState, true)) {
+    return <AccessStatus state={accessState} online={online} />;
+  }
 
   return <div className="app-shell">
     <header className="topbar"><button className="brand brand-button" type="button" onClick={() => navigate("itinerary")}><span className="brand-mark">旅</span><span>Travel Book</span></button><div className="topbar-side"><span className="sync-label">{online ? "首頁功能開發版" : "離線唯讀"}</span><span className="avatar" aria-label="4 位同行者">4 人</span></div></header>
-    {route === "home" ? <HomePage repository={repository} online={online} /> : <ComingSoon route={route} onHome={() => navigate("home")} />}
+    {route === "home" ? <HomePage repository={repository} online={online} /> : route === "itinerary" ? <ItineraryPage repository={itineraryRepository} trip={verifiedAccess.trip} online={online} /> : <ComingSoon route={route} onHome={() => navigate("home")} />}
     <nav className="bottom-nav" aria-label="主要導覽">
       {routeItems.map(([value, icon, label]) => <button className="nav-button" type="button" key={value} onClick={() => navigate(value)} aria-current={route === value ? "page" : undefined}><Icon name={icon} size={20} /><span>{label}</span></button>)}
     </nav>

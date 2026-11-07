@@ -1,11 +1,30 @@
-import type { AccessVerifyResponse, ApiErrorCode } from "../../../packages/contracts/src/index.ts";
+import {
+  parseMutationMetadata,
+  parseSaveTripDayRequest,
+  type AccessVerifyResponse,
+  type ApiErrorCode,
+  type SaveTripDayItem,
+  type TripDay,
+} from "../../../packages/contracts/src/index.ts";
 
 export interface AccessStore {
   verify(token: string): Promise<AccessVerifyResponse | null>;
 }
 
+export interface ItineraryStore {
+  getDay(tripId: string, date: string): Promise<TripDay | null>;
+  saveDayItems(
+    tripId: string,
+    date: string,
+    items: readonly SaveTripDayItem[],
+    expectedVersion: number,
+    idempotencyKey: string,
+  ): Promise<TripDay>;
+}
+
 export interface HandlerDependencies {
   accessStore: AccessStore;
+  itineraryStore: ItineraryStore;
   allowedOrigins: ReadonlySet<string>;
   log(entry: Record<string, unknown>): void;
 }
@@ -52,6 +71,19 @@ function safeUpstreamStatus(error: unknown): number | undefined {
     : undefined;
 }
 
+function safeItineraryStoreCode(error: unknown): "RESOURCE_NOT_FOUND" | "VERSION_CONFLICT" | "VALIDATION_FAILED" | undefined {
+  if (
+    typeof error !== "object"
+    || error === null
+    || !("code" in error)
+    || !("message" in error)
+    || error.message !== "ITINERARY_STORE_UNAVAILABLE"
+  ) return undefined;
+  return error.code === "RESOURCE_NOT_FOUND" || error.code === "VERSION_CONFLICT" || error.code === "VALIDATION_FAILED"
+    ? error.code
+    : undefined;
+}
+
 export async function handleRequest(request: Request, dependencies: HandlerDependencies): Promise<Response> {
   const url = new URL(request.url);
   const requestId = requestIdFor(request);
@@ -76,6 +108,59 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
     } catch (error) {
       upstreamStatus = safeUpstreamStatus(error);
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if (request.method === "GET" && /\/v1\/days\/\d{4}-\d{2}-\d{2}$/.test(url.pathname)) {
+    const token = bearerToken(request);
+    const date = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
+    try {
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      const day = verified ? await dependencies.itineraryStore.getDay(verified.trip.id, date) : null;
+      response = !verified
+        ? apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers)
+        : day
+          ? json(day, 200, headers)
+          : apiError("RESOURCE_NOT_FOUND", "找不到指定日期的行程。", requestId, 404, headers);
+    } catch (error) {
+      upstreamStatus = safeUpstreamStatus(error);
+      response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if (request.method === "PUT" && /\/v1\/days\/\d{4}-\d{2}-\d{2}$/.test(url.pathname)) {
+    const token = bearerToken(request);
+    const date = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
+    try {
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      if (!verified) {
+        response = apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers);
+      } else {
+        const body: unknown = await request.json().catch(() => null);
+        const parsed = parseSaveTripDayRequest(body);
+        const metadata = parseMutationMetadata({
+          expectedVersion: parsed.ok ? parsed.value.expectedVersion : null,
+          idempotencyKey: request.headers.get("idempotency-key"),
+        });
+        if (!parsed.ok || !metadata.ok) {
+          response = apiError("VALIDATION_FAILED", "行程保存資料格式不正確。", requestId, 422, headers);
+        } else {
+          const saved = await dependencies.itineraryStore.saveDayItems(
+            verified.trip.id,
+            date,
+            parsed.value.items,
+            parsed.value.expectedVersion,
+            metadata.value.idempotencyKey,
+          );
+          response = json(saved, 200, headers);
+        }
+      }
+    } catch (error) {
+      upstreamStatus = safeUpstreamStatus(error);
+      const storeCode = safeItineraryStoreCode(error);
+      response = storeCode === "VERSION_CONFLICT"
+        ? apiError("VERSION_CONFLICT", "資料已由其他裝置更新，請重新載入。", requestId, 409, headers)
+        : storeCode === "RESOURCE_NOT_FOUND"
+          ? apiError("RESOURCE_NOT_FOUND", "找不到指定日期的行程。", requestId, 404, headers)
+          : storeCode === "VALIDATION_FAILED"
+            ? apiError("VALIDATION_FAILED", "行程保存資料格式不正確。", requestId, 422, headers)
+            : apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
     }
   } else {
     response = apiError("RESOURCE_NOT_FOUND", "找不到指定的介面。", requestId, 404, headers);

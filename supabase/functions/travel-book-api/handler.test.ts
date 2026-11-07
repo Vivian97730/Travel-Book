@@ -16,6 +16,24 @@ const verifiedAccess = {
 function dependencies(verify = vi.fn(async () => verifiedAccess)): HandlerDependencies {
   return {
     accessStore: { verify },
+    itineraryStore: {
+      getDay: vi.fn(async () => ({
+        date: "2027-02-06",
+        weekday: "六",
+        city: "維也納",
+        summary: "今天步調舒緩，景點集中在市中心。",
+        version: 1,
+        items: [],
+      })),
+      saveDayItems: vi.fn(async (_tripId, date) => ({
+        date,
+        weekday: "六",
+        city: "維也納",
+        summary: "今天步調舒緩，景點集中在市中心。",
+        version: 2,
+        items: [],
+      })),
+    },
     allowedOrigins: new Set(["https://vivian97730.github.io", "http://localhost:5173"]),
     log: vi.fn(),
   };
@@ -44,6 +62,106 @@ describe("travel-book-api handler", () => {
     expect(response.headers.get("access-control-allow-origin")).toBe("https://vivian97730.github.io");
     await expect(response.json()).resolves.toEqual(verifiedAccess);
     expect(deps.accessStore.verify).toHaveBeenCalledWith("valid-private-token");
+  });
+
+  it("returns one trip day after verifying private access", async () => {
+    const deps = dependencies();
+    const response = await handleRequest(new Request("http://localhost/v1/days/2027-02-06", {
+      headers: { authorization: "Bearer valid-private-token" },
+    }), deps);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ date: "2027-02-06", city: "維也納" });
+    expect(deps.accessStore.verify).toHaveBeenCalledWith("valid-private-token");
+    expect(deps.itineraryStore.getDay).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      "2027-02-06",
+    );
+  });
+
+  it("saves one complete itinerary batch after verifying private access", async () => {
+    const deps = dependencies();
+    const idempotencyKey = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const items = [{
+      id: "20000000-0000-4000-8000-000000000001",
+      title: "中央咖啡館午餐",
+      note: "預留一小時",
+      category: "food",
+      sortOrder: 0,
+    }];
+    const response = await handleRequest(new Request("http://localhost/v1/days/2027-02-06", {
+      method: "PUT",
+      headers: {
+        authorization: "Bearer valid-private-token",
+        "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+      },
+      body: JSON.stringify({ expectedVersion: 1, items }),
+    }), deps);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ date: "2027-02-06", version: 2 });
+    expect(deps.accessStore.verify).toHaveBeenCalledWith("valid-private-token");
+    expect(deps.itineraryStore.saveDayItems).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      "2027-02-06",
+      items,
+      1,
+      idempotencyKey,
+    );
+  });
+
+  it("returns a stable conflict when another device already saved the expected version", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.itineraryStore.saveDayItems).mockRejectedValue(Object.assign(
+      new Error("ITINERARY_STORE_UNAVAILABLE"),
+      { status: 400, code: "VERSION_CONFLICT" },
+    ));
+    const response = await handleRequest(new Request("http://localhost/v1/days/2027-02-06", {
+      method: "PUT",
+      headers: {
+        authorization: "Bearer valid-private-token",
+        "content-type": "application/json",
+        "idempotency-key": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      },
+      body: JSON.stringify({ expectedVersion: 1, items: [] }),
+    }), deps);
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(parseApiError(body)).toMatchObject({
+      ok: true,
+      value: {
+        error: {
+          code: "VERSION_CONFLICT",
+          message: "資料已由其他裝置更新，請重新載入。",
+          details: {},
+        },
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain("ITINERARY_STORE_UNAVAILABLE");
+    expect(deps.log).toHaveBeenCalledWith(expect.objectContaining({ status: 409, upstreamStatus: 400 }));
+  });
+
+  it("does not query itinerary storage when private access is denied", async () => {
+    const deps = dependencies(vi.fn(async () => null));
+    const response = await handleRequest(new Request("http://localhost/v1/days/2027-02-06", {
+      headers: { authorization: "Bearer invalid-private-token" },
+    }), deps);
+
+    expect(response.status).toBe(401);
+    expect(deps.itineraryStore.getDay).not.toHaveBeenCalled();
+  });
+
+  it("returns the stable missing-resource error when a trip day does not exist", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.itineraryStore.getDay).mockResolvedValue(null);
+    const response = await handleRequest(new Request("http://localhost/v1/days/2027-02-20", {
+      headers: { authorization: "Bearer valid-private-token" },
+    }), deps);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "RESOURCE_NOT_FOUND" } });
   });
 
   it.each([

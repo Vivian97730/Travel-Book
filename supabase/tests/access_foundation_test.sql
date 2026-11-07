@@ -1,5 +1,7 @@
 begin;
 
+set local search_path = public, extensions, pg_catalog;
+
 select plan(18);
 
 select has_table('app_private', 'trips', 'trips table exists');
