@@ -253,6 +253,7 @@ export function ItineraryDayView({
   onDeleteItem?(id: string): void;
   onReorderItem?(sourceId: string, targetId: string): void;
 }) {
+  const canEdit = editing && online;
   const mappedItems: ItineraryMapLocation[] = day.items.flatMap((item, index) => {
     if (item.place === null || item.place.latitude === null || item.place.longitude === null) return [];
     return [{
@@ -266,7 +267,7 @@ export function ItineraryDayView({
   return <main id="main" className="screen">
     <header className="page-heading"><div><p className="eyebrow">Daily plan</p><h1>每日行程</h1></div></header>
     <section className="date-strip" aria-label="選擇日期">
-      {dates.map((date) => <button className="date-button" type="button" key={date} onClick={() => onSelectDate(date)} aria-pressed={date === selectedDate}><span>週{weekdayFor(date)}</span><strong>{date.slice(5).replace("-", "/")}</strong></button>)}
+      {dates.map((date) => <button className="date-button" type="button" key={date} onClick={() => onSelectDate(date)} disabled={!online} aria-pressed={date === selectedDate}><span>週{weekdayFor(date)}</span><strong>{date.slice(5).replace("-", "/")}</strong></button>)}
     </section>
     <div className="itinerary-grid">
       <section className="card map-card" data-map-provider="openstreetmap" data-map-points={mappedItems.map((item) => item.name).join("|")} aria-label={`OpenStreetMap 每日地點地圖，${mappedItems.length} 個有座標地點`}>
@@ -275,15 +276,15 @@ export function ItineraryDayView({
         <a className="primary-button map-action" href={googleMapsSearchUrl(day.city)} target="_blank" rel="noreferrer"><Icon name="map" size={18} />開啟 Google Maps</a>
       </section>
       <section className="card section-card" aria-labelledby="city-title">
-        <div className="city-head"><div><p className="eyebrow">{day.date}・週{day.weekday}</p><h2 id="city-title">{day.city}</h2><p>{editing ? "編輯模式：可新增、修改、刪除或拖曳排序。" : day.summary}</p></div><button className="icon-button" type="button" onClick={onToggleEditing} disabled={saving} aria-label={editing ? "完成行程編輯" : "編輯城市與行程"} aria-pressed={editing}><Icon name={editing ? "check" : "edit"} size={19} /></button></div>
+        <div className="city-head"><div><p className="eyebrow">{day.date}・週{day.weekday}</p><h2 id="city-title">{day.city}</h2><p>{editing ? (online ? "編輯模式：可新增、修改、刪除或拖曳排序。" : "離線唯讀：草稿已保留，連線後可繼續編輯。") : day.summary}</p></div><button className="icon-button" type="button" onClick={onToggleEditing} disabled={saving || !online} aria-label={editing ? "完成行程編輯" : "編輯城市與行程"} aria-pressed={editing}><Icon name={editing ? "check" : "edit"} size={19} /></button></div>
         <div className="schedule-list" style={{ marginTop: "1.25rem" }}>
-          {day.items.length ? day.items.map((item, index) => <article className={`schedule-card ${editing ? "is-editing" : ""}`} data-itinerary-card={item.id} key={item.id}>
+          {day.items.length ? day.items.map((item, index) => <article className={`schedule-card ${canEdit ? "is-editing" : ""}`} data-itinerary-card={item.id} key={item.id}>
             <span className={`timeline-icon category-${item.category}`}><Icon name={categoryIcons[item.category]} size={21} /></span>
             <div className="timeline-copy"><strong>{item.title}</strong><p>{item.note}</p>{item.place && <small className="itinerary-place-name">{item.place.name}</small>}<a className="navigate-link" href={googleMapsSearchUrl(item.title)} target="_blank" rel="noreferrer"><Icon name="location" size={14} />導航</a></div>
-            {editing ? <div className="schedule-controls"><DragHandle item={item} previousItem={day.items[index - 1]} nextItem={day.items[index + 1]} onReorder={onReorderItem} /><button className="icon-button" type="button" onClick={() => onEditItem(item)} aria-label={`修改${item.title}`}><Icon name="edit" size={17} /></button><button className="icon-button danger-icon" type="button" onClick={() => onDeleteItem(item.id)} aria-label={`刪除${item.title}`}><Icon name="trash" size={17} /></button></div> : <button className="icon-button" type="button" onClick={() => onViewItem(item)} aria-label={`檢視${item.title}`}><Icon name="chevron" size={18} /></button>}
+            {canEdit ? <div className="schedule-controls"><DragHandle item={item} previousItem={day.items[index - 1]} nextItem={day.items[index + 1]} onReorder={onReorderItem} /><button className="icon-button" type="button" onClick={() => onEditItem(item)} aria-label={`修改${item.title}`}><Icon name="edit" size={17} /></button><button className="icon-button danger-icon" type="button" onClick={() => onDeleteItem(item.id)} aria-label={`刪除${item.title}`}><Icon name="trash" size={17} /></button></div> : <button className="icon-button" type="button" onClick={() => onViewItem(item)} aria-label={`檢視${item.title}`}><Icon name="chevron" size={18} /></button>}
           </article>) : <p className="empty-state">這一天尚未安排細項。</p>}
         </div>
-        {editing && <button className="secondary-button add-itinerary-button" type="button" onClick={onAddItem}><Icon name="plus" size={17} />新增行程</button>}
+        {canEdit && <button className="secondary-button add-itinerary-button" type="button" onClick={onAddItem}><Icon name="plus" size={17} />新增行程</button>}
       </section>
     </div>
   </main>;

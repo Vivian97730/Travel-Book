@@ -63,6 +63,52 @@ describe("itinerary page public behavior", () => {
     expect(html).not.toContain("檢視中央咖啡館午餐");
   });
 
+  it("keeps the loaded itinerary readable but disables new actions offline", () => {
+    const html = renderToStaticMarkup(<ItineraryDayView
+      day={sampleTripDays[1]}
+      dates={["2027-02-05", "2027-02-06"]}
+      selectedDate="2027-02-06"
+      online={false}
+      onSelectDate={() => undefined}
+      onViewItem={() => undefined}
+      onToggleEditing={() => undefined}
+    />);
+
+    expect(html).toContain("中央咖啡館午餐");
+    expect(html).toContain("開啟 Google Maps");
+    expect(html).toContain('data-map-status="offline"');
+    expect(html).toContain("離線時不載入街道圖磚");
+    expect(html).toMatch(/class="date-button"[^>]*disabled=""/);
+    expect(html).toMatch(/disabled=""[^>]*aria-label="編輯城市與行程"/);
+  });
+
+  it("preserves an existing draft while hiding all mutation controls offline", () => {
+    const draftDay = structuredClone(sampleTripDays[1]);
+    draftDay.items[2] = { ...draftDay.items[2], title: "中央咖啡館草稿" };
+    const html = renderToStaticMarkup(<ItineraryDayView
+      day={draftDay}
+      dates={["2027-02-05", "2027-02-06"]}
+      selectedDate="2027-02-06"
+      online={false}
+      editing
+      onSelectDate={() => undefined}
+      onViewItem={() => undefined}
+      onToggleEditing={() => undefined}
+      onAddItem={() => undefined}
+      onEditItem={() => undefined}
+      onDeleteItem={() => undefined}
+      onReorderItem={() => undefined}
+    />);
+
+    expect(html).toContain("中央咖啡館草稿");
+    expect(html).toContain("離線唯讀：草稿已保留，連線後可繼續編輯。");
+    expect(html).toMatch(/disabled=""[^>]*aria-label="完成行程編輯"/);
+    expect(html).not.toContain("新增行程");
+    expect(html).not.toContain("修改中央咖啡館草稿");
+    expect(html).not.toContain("刪除中央咖啡館草稿");
+    expect(html).not.toContain("拖曳中央咖啡館草稿");
+  });
+
   it("keeps the map in sync when draft items without coordinates are added or mapped items are deleted", () => {
     const withAddedItem = structuredClone(sampleTripDays[1]);
     withAddedItem.items.push({

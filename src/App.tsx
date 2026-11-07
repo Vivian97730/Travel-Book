@@ -17,7 +17,11 @@ const routeItems = [
   ["lists", "list", "清單"],
 ] as const satisfies ReadonlyArray<readonly [Route, IconName, string]>;
 
-type AccessState = "checking" | "ready" | "missing" | "denied" | "offline" | "unconfigured" | "error";
+export type AccessState = "checking" | "ready" | "missing" | "denied" | "offline" | "unconfigured" | "error";
+
+export function shouldRenderVerifiedApp(state: AccessState, hasVerifiedAccess: boolean): boolean {
+  return hasVerifiedAccess && (state === "ready" || state === "offline" || state === "checking");
+}
 
 function routeFromCurrentHash(): Route {
   const parsed = parseAppHash(window.location.hash);
@@ -110,7 +114,9 @@ export default function App() {
     window.location.hash = hashForRoute(next);
   }
 
-  if (accessState !== "ready" || !verifiedAccess || !itineraryRepository) return <AccessStatus state={accessState} online={online} />;
+  if (!verifiedAccess || !itineraryRepository || !shouldRenderVerifiedApp(accessState, true)) {
+    return <AccessStatus state={accessState} online={online} />;
+  }
 
   return <div className="app-shell">
     <header className="topbar"><button className="brand brand-button" type="button" onClick={() => navigate("itinerary")}><span className="brand-mark">旅</span><span>Travel Book</span></button><div className="topbar-side"><span className="sync-label">{online ? "首頁功能開發版" : "離線唯讀"}</span><span className="avatar" aria-label="4 位同行者">4 人</span></div></header>
