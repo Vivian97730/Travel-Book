@@ -1,9 +1,11 @@
 import {
   parseMutationMetadata,
+  parseSaveTravelFactsRequest,
   parseSaveTripDayRequest,
   type AccessVerifyResponse,
   type ApiErrorCode,
   type SaveTripDayItem,
+  type SaveTravelFact,
   type TripDay,
   type TripHome,
 } from "../../../packages/contracts/src/index.ts";
@@ -25,6 +27,12 @@ export interface ItineraryStore {
 
 export interface HomeStore {
   getHome(tripId: string): Promise<TripHome | null>;
+  saveFacts(
+    tripId: string,
+    facts: readonly SaveTravelFact[],
+    expectedVersion: number,
+    idempotencyKey: string,
+  ): Promise<TripHome>;
 }
 
 export interface HandlerDependencies {
@@ -90,6 +98,19 @@ function safeItineraryStoreCode(error: unknown): "RESOURCE_NOT_FOUND" | "VERSION
     : undefined;
 }
 
+function safeHomeStoreCode(error: unknown): "RESOURCE_NOT_FOUND" | "VERSION_CONFLICT" | "VALIDATION_FAILED" | undefined {
+  if (
+    typeof error !== "object"
+    || error === null
+    || !("code" in error)
+    || !("message" in error)
+    || error.message !== "HOME_STORE_UNAVAILABLE"
+  ) return undefined;
+  return error.code === "RESOURCE_NOT_FOUND" || error.code === "VERSION_CONFLICT" || error.code === "VALIDATION_FAILED"
+    ? error.code
+    : undefined;
+}
+
 export async function handleRequest(request: Request, dependencies: HandlerDependencies): Promise<Response> {
   const url = new URL(request.url);
   const requestId = requestIdFor(request);
@@ -128,6 +149,42 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
     } catch (error) {
       upstreamStatus = safeUpstreamStatus(error);
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if (request.method === "PUT" && url.pathname.endsWith("/v1/home/facts")) {
+    const token = bearerToken(request);
+    try {
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      if (!verified) {
+        response = apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers);
+      } else {
+        const body: unknown = await request.json().catch(() => null);
+        const parsed = parseSaveTravelFactsRequest(body);
+        const metadata = parseMutationMetadata({
+          expectedVersion: parsed.ok ? parsed.value.expectedVersion : null,
+          idempotencyKey: request.headers.get("idempotency-key"),
+        });
+        if (!parsed.ok || !metadata.ok) {
+          response = apiError("VALIDATION_FAILED", "小知識保存資料格式不正確。", requestId, 422, headers);
+        } else {
+          const saved = await dependencies.homeStore.saveFacts(
+            verified.trip.id,
+            parsed.value.facts,
+            parsed.value.expectedVersion,
+            metadata.value.idempotencyKey,
+          );
+          response = json(saved, 200, headers);
+        }
+      }
+    } catch (error) {
+      upstreamStatus = safeUpstreamStatus(error);
+      const storeCode = safeHomeStoreCode(error);
+      response = storeCode === "VERSION_CONFLICT"
+        ? apiError("VERSION_CONFLICT", "資料已由其他裝置更新，請重新載入。", requestId, 409, headers)
+        : storeCode === "RESOURCE_NOT_FOUND"
+          ? apiError("RESOURCE_NOT_FOUND", "找不到旅程首頁資料。", requestId, 404, headers)
+          : storeCode === "VALIDATION_FAILED"
+            ? apiError("VALIDATION_FAILED", "小知識保存資料格式不正確。", requestId, 422, headers)
+            : apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
     }
   } else if (request.method === "GET" && /\/v1\/days\/\d{4}-\d{2}-\d{2}$/.test(url.pathname)) {
     const token = bearerToken(request);

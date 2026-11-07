@@ -3,6 +3,24 @@ import { HomeStoreRequestError, SupabaseHomeStore } from "./homeStore";
 
 const tripId = "11111111-1111-4111-8111-111111111111";
 
+const homePayload = {
+  title: "2027 過年東歐遊",
+  subtitle: "維也納・哈修塔特・布達佩斯",
+  startDate: "2027-02-05",
+  endDate: "2027-02-15",
+  displayTimezone: "Europe/Vienna",
+  travelerCount: 4,
+  version: 2,
+  flights: [],
+  facts: [{
+    id: "50000000-0000-4000-8000-000000000001",
+    icon: "globe",
+    title: "和台灣的時差",
+    content: "冬季慢 7 小時",
+    sortOrder: 0,
+  }],
+};
+
 describe("Supabase home store", () => {
   it("maps the private RPC payload to the shared TripHome contract", async () => {
     const fetcher = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async () => Response.json({
@@ -52,6 +70,36 @@ describe("Supabase home store", () => {
     const store = new SupabaseHomeStore("https://project.supabase.co", "secret-key", fetcher);
 
     await expect(store.getHome(tripId)).resolves.toBeNull();
+  });
+
+  it("sends one versioned and idempotent fact batch to the private RPC", async () => {
+    const fetcher = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async () => Response.json(homePayload));
+    const store = new SupabaseHomeStore("https://project.supabase.co", "secret-key", fetcher);
+    const facts = homePayload.facts.map((fact) => ({ ...fact, icon: "globe" as const }));
+
+    await expect(store.saveFacts(tripId, facts, 1, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"))
+      .resolves.toMatchObject({ version: 2, facts });
+    expect(fetcher).toHaveBeenCalledWith("https://project.supabase.co/rest/v1/rpc/save_travel_facts", {
+      method: "POST",
+      headers: { apikey: "secret-key", "content-type": "application/json" },
+      body: JSON.stringify({
+        p_trip_id: tripId,
+        p_facts: facts,
+        p_expected_version: 1,
+        p_idempotency_key: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      }),
+    });
+  });
+
+  it("maps the private RPC conflict without exposing its body", async () => {
+    const rejected = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async () => Response.json(
+      { message: "VERSION_CONFLICT", details: "sensitive" },
+      { status: 400 },
+    ));
+    const store = new SupabaseHomeStore("https://project.supabase.co", "secret-key", rejected);
+
+    await expect(store.saveFacts(tripId, [], 1, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"))
+      .rejects.toEqual(new HomeStoreRequestError(400, "VERSION_CONFLICT"));
   });
 
   it("rejects upstream failures and invalid home payloads", async () => {

@@ -1,14 +1,34 @@
-import { isRecord, parseTripHome, type TripHome } from "../../../../../packages/contracts/src/index.ts";
+import {
+  isRecord,
+  parseTripHome,
+  type SaveTravelFact,
+  type TripHome,
+} from "../../../../../packages/contracts/src/index.ts";
+import type { HomeStore } from "../../handler.ts";
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
 const isoDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 export class HomeStoreRequestError extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly code?: "RESOURCE_NOT_FOUND" | "VERSION_CONFLICT" | "VALIDATION_FAILED",
+  ) {
     super("HOME_STORE_UNAVAILABLE");
     this.name = "HomeStoreRequestError";
   }
+}
+
+async function requestError(response: Response): Promise<HomeStoreRequestError> {
+  const body: unknown = await response.json().catch(() => null);
+  const message = typeof body === "object" && body !== null && "message" in body
+    ? body.message
+    : null;
+  const code = message === "RESOURCE_NOT_FOUND" || message === "VERSION_CONFLICT" || message === "VALIDATION_FAILED"
+    ? message
+    : undefined;
+  return new HomeStoreRequestError(response.status, code);
 }
 
 function dateParts(value: unknown): RegExpMatchArray | null {
@@ -64,7 +84,7 @@ function mapHomePayload(payload: unknown): TripHome | null {
   return parsed.value;
 }
 
-export class SupabaseHomeStore {
+export class SupabaseHomeStore implements HomeStore {
   private readonly baseUrl: string;
 
   constructor(baseUrl: string, private readonly secretKey: string, private readonly fetcher: Fetcher = fetch) {
@@ -77,9 +97,33 @@ export class SupabaseHomeStore {
       headers: { apikey: this.secretKey, "content-type": "application/json" },
       body: JSON.stringify({ p_trip_id: tripId }),
     });
-    if (!response.ok) throw new HomeStoreRequestError(response.status);
+    if (!response.ok) throw await requestError(response);
 
     const payload: unknown = await response.json();
     return mapHomePayload(payload);
+  }
+
+  async saveFacts(
+    tripId: string,
+    facts: readonly SaveTravelFact[],
+    expectedVersion: number,
+    idempotencyKey: string,
+  ): Promise<TripHome> {
+    const response = await this.fetcher(`${this.baseUrl}/rest/v1/rpc/save_travel_facts`, {
+      method: "POST",
+      headers: { apikey: this.secretKey, "content-type": "application/json" },
+      body: JSON.stringify({
+        p_trip_id: tripId,
+        p_facts: facts,
+        p_expected_version: expectedVersion,
+        p_idempotency_key: idempotencyKey,
+      }),
+    });
+    if (!response.ok) throw await requestError(response);
+
+    const payload: unknown = await response.json();
+    const home = mapHomePayload(payload);
+    if (!home) throw new Error("HOME_STORE_INVALID_RESPONSE");
+    return home;
   }
 }

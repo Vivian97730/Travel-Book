@@ -15,7 +15,7 @@ export class ApiHomeRepository implements HomeRepository {
     return this.client.getTripHome(this.accessToken);
   }
 
-  async saveTravelFacts(_facts: TravelFact[], _expectedVersion: number): Promise<TripHome> {
-    throw new Error("HOME_FACTS_WRITE_NOT_AVAILABLE");
+  saveTravelFacts(facts: TravelFact[], expectedVersion: number): Promise<TripHome> {
+    return this.client.saveTravelFacts(this.accessToken, facts, expectedVersion);
   }
 }

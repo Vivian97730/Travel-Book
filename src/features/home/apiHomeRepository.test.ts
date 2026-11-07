@@ -58,4 +58,35 @@ describe("API HomeRepository", () => {
 
     await expect(repository.getTripHome()).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   });
+
+  it("saves one normalized fact batch with version and retry identity", async () => {
+    const savedHome = { ...validHome, version: 2 };
+    const fetcher = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async () => Response.json(savedHome));
+    const repository = new ApiHomeRepository("https://api.example", "private-token", fetcher);
+
+    await expect(repository.saveTravelFacts(validHome.facts, 1)).resolves.toEqual(savedHome);
+    const [, init] = fetcher.mock.calls[0];
+    expect(fetcher).toHaveBeenCalledWith("https://api.example/v1/home/facts", expect.objectContaining({
+      method: "PUT",
+      headers: expect.objectContaining({
+        authorization: "Bearer private-token",
+        "idempotency-key": expect.any(String),
+      }),
+    }));
+    expect(JSON.parse(String(init?.body))).toEqual({ expectedVersion: 1, facts: validHome.facts });
+  });
+
+  it("preserves the stable version-conflict error when saving", async () => {
+    const fetcher = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async () => Response.json({
+      error: {
+        code: "VERSION_CONFLICT",
+        message: "資料已由其他裝置更新，請重新載入。",
+        requestId: crypto.randomUUID(),
+        details: {},
+      },
+    }, { status: 409 }));
+    const repository = new ApiHomeRepository("https://api.example", "private-token", fetcher);
+
+    await expect(repository.saveTravelFacts(validHome.facts, 1)).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
+  });
 });

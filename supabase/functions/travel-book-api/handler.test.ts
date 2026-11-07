@@ -27,7 +27,10 @@ const tripHome = {
 function dependencies(verify = vi.fn(async () => verifiedAccess)): HandlerDependencies {
   return {
     accessStore: { verify },
-    homeStore: { getHome: vi.fn(async () => tripHome) },
+    homeStore: {
+      getHome: vi.fn(async () => tripHome),
+      saveFacts: vi.fn(async () => ({ ...tripHome, version: 2 })),
+    },
     itineraryStore: {
       getDay: vi.fn(async () => ({
         date: "2027-02-06",
@@ -112,6 +115,75 @@ describe("travel-book-api handler", () => {
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toMatchObject({ error: { code: "ACCESS_DENIED" } });
     expect(deps.homeStore.getHome).not.toHaveBeenCalled();
+  });
+
+  it("saves one complete travel-fact batch after verifying private access", async () => {
+    const deps = dependencies();
+    const idempotencyKey = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const facts = [{
+      id: "50000000-0000-4000-8000-000000000001",
+      icon: "globe",
+      title: "和台灣的時差",
+      content: "冬季慢 7 小時",
+      sortOrder: 0,
+    }];
+    const response = await handleRequest(new Request("http://localhost/v1/home/facts", {
+      method: "PUT",
+      headers: {
+        authorization: "Bearer valid-private-token",
+        "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+      },
+      body: JSON.stringify({ expectedVersion: 1, facts }),
+    }), deps);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ version: 2 });
+    expect(deps.homeStore.saveFacts).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      facts,
+      1,
+      idempotencyKey,
+    );
+  });
+
+  it("returns a stable conflict for stale travel facts and keeps storage errors private", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.homeStore.saveFacts).mockRejectedValue(Object.assign(
+      new Error("HOME_STORE_UNAVAILABLE"),
+      { status: 400, code: "VERSION_CONFLICT" },
+    ));
+    const response = await handleRequest(new Request("http://localhost/v1/home/facts", {
+      method: "PUT",
+      headers: {
+        authorization: "Bearer valid-private-token",
+        "content-type": "application/json",
+        "idempotency-key": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      },
+      body: JSON.stringify({ expectedVersion: 1, facts: [] }),
+    }), deps);
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(parseApiError(body)).toMatchObject({ ok: true, value: { error: { code: "VERSION_CONFLICT" } } });
+    expect(JSON.stringify(body)).not.toContain("HOME_STORE_UNAVAILABLE");
+    expect(deps.log).toHaveBeenCalledWith(expect.objectContaining({ status: 409, upstreamStatus: 400 }));
+  });
+
+  it("rejects invalid travel-fact batches before calling storage", async () => {
+    const deps = dependencies();
+    const response = await handleRequest(new Request("http://localhost/v1/home/facts", {
+      method: "PUT",
+      headers: {
+        authorization: "Bearer valid-private-token",
+        "content-type": "application/json",
+        "idempotency-key": "invalid",
+      },
+      body: JSON.stringify({ expectedVersion: 0, facts: "invalid" }),
+    }), deps);
+
+    expect(response.status).toBe(422);
+    expect(deps.homeStore.saveFacts).not.toHaveBeenCalled();
   });
 
   it("returns the stable missing-resource error when trip home data does not exist", async () => {
