@@ -13,9 +13,21 @@ const verifiedAccess = {
   resourceVersions: { itinerary: 1 },
 };
 
+const tripHome = {
+  title: "2027 過年東歐遊",
+  subtitle: "維也納・哈修塔特・布達佩斯",
+  dateLabel: "2027／02／05－02／15",
+  durationLabel: "11 天 10 夜",
+  travelerCount: 4,
+  version: 1,
+  flights: [],
+  facts: [],
+};
+
 function dependencies(verify = vi.fn(async () => verifiedAccess)): HandlerDependencies {
   return {
     accessStore: { verify },
+    homeStore: { getHome: vi.fn(async () => tripHome) },
     itineraryStore: {
       getDay: vi.fn(async () => ({
         date: "2027-02-06",
@@ -77,6 +89,40 @@ describe("travel-book-api handler", () => {
       "11111111-1111-4111-8111-111111111111",
       "2027-02-06",
     );
+  });
+
+  it("returns the trip home after verifying private access", async () => {
+    const deps = dependencies();
+    const response = await handleRequest(new Request("http://localhost/v1/home", {
+      headers: { authorization: "Bearer valid-private-token" },
+    }), deps);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(tripHome);
+    expect(deps.accessStore.verify).toHaveBeenCalledWith("valid-private-token");
+    expect(deps.homeStore.getHome).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
+  });
+
+  it("does not query home storage when private access is denied", async () => {
+    const deps = dependencies(vi.fn(async () => null));
+    const response = await handleRequest(new Request("http://localhost/v1/home", {
+      headers: { authorization: "Bearer invalid-private-token" },
+    }), deps);
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "ACCESS_DENIED" } });
+    expect(deps.homeStore.getHome).not.toHaveBeenCalled();
+  });
+
+  it("returns the stable missing-resource error when trip home data does not exist", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.homeStore.getHome).mockResolvedValue(null);
+    const response = await handleRequest(new Request("http://localhost/v1/home", {
+      headers: { authorization: "Bearer valid-private-token" },
+    }), deps);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: "RESOURCE_NOT_FOUND" } });
   });
 
   it("saves one complete itinerary batch after verifying private access", async () => {

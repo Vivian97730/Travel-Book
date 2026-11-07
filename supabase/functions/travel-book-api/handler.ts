@@ -5,6 +5,7 @@ import {
   type ApiErrorCode,
   type SaveTripDayItem,
   type TripDay,
+  type TripHome,
 } from "../../../packages/contracts/src/index.ts";
 
 export interface AccessStore {
@@ -22,8 +23,13 @@ export interface ItineraryStore {
   ): Promise<TripDay>;
 }
 
+export interface HomeStore {
+  getHome(tripId: string): Promise<TripHome | null>;
+}
+
 export interface HandlerDependencies {
   accessStore: AccessStore;
+  homeStore: HomeStore;
   itineraryStore: ItineraryStore;
   allowedOrigins: ReadonlySet<string>;
   log(entry: Record<string, unknown>): void;
@@ -105,6 +111,20 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
       response = verified
         ? json(verified, 200, headers)
         : apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers);
+    } catch (error) {
+      upstreamStatus = safeUpstreamStatus(error);
+      response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if (request.method === "GET" && url.pathname.endsWith("/v1/home")) {
+    const token = bearerToken(request);
+    try {
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      const home = verified ? await dependencies.homeStore.getHome(verified.trip.id) : null;
+      response = !verified
+        ? apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers)
+        : home
+          ? json(home, 200, headers)
+          : apiError("RESOURCE_NOT_FOUND", "找不到旅程首頁資料。", requestId, 404, headers);
     } catch (error) {
       upstreamStatus = safeUpstreamStatus(error);
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
