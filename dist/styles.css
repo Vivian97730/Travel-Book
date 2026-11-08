@@ -381,6 +381,7 @@ textarea:focus-visible {
 .flight-route { display: grid; grid-template-columns: auto 1fr auto 1fr auto; align-items: center; gap: 0.5rem; margin-top: 0.75rem; }
 .flight-airport strong { display: block; font-family: "DM Sans", sans-serif; font-size: 1rem; }
 .flight-airport span { color: var(--muted); font-size: 0.72rem; }
+.flight-day-offset { display: block; white-space: nowrap; font-size: 0.85em; line-height: 1.2; }
 .flight-line { height: 1px; background: repeating-linear-gradient(90deg, var(--forest) 0 5px, transparent 5px 9px); }
 .flight-stop { min-width: 5.4rem; text-align: center; }
 .flight-stop strong { color: var(--forest); }
@@ -750,7 +751,7 @@ textarea.field { min-height: 6rem; resize: vertical; }
   .date-field-row { grid-template-columns: minmax(0, 1fr); }
   .dialog { width: min(calc(100% - 1.25rem), 32rem); }
   .dialog-form { padding: 1.15rem; }
-  .dialog-actions .danger-button { width: 100%; margin-right: 0; }
+  .dialog-actions .danger-button { width: auto; margin-right: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

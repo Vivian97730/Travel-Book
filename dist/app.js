@@ -129,7 +129,7 @@ function homeScreen() {
           <div class="section-head"><div><h2 id="flights-title">航班資訊</h2><p>各段時間依當地時區顯示</p></div>${icon("plane", 23)}</div>
           <div class="flight-list">
             ${flightRow("去程", "TPE", "00:20", "DXB", "06:15－08:55", "VIE", "12:25", "16 小時 05 分")}
-            ${flightRow("回程", "VIE", "21:45", "DXB", "06:25－08:45", "TPE", "20:40", "16 小時 55 分")}
+            ${flightRow("回程", "VIE", "21:45", "DXB", "06:25－08:45", "TPE", "20:40", "16 小時 55 分", 0, 1, 1)}
           </div>
         </section>
       </div>
@@ -142,8 +142,12 @@ function homeScreen() {
   </main>`;
 }
 
-function flightRow(label, from, fromTime, stop, stopTime, to, toTime, duration) {
-  return `<article class="flight-row"><span class="flight-direction">${icon("plane", 20)}</span><div><div class="flight-title"><strong>${label}</strong><span>${duration}</span></div><div class="flight-route"><div class="flight-airport"><strong>${from}</strong><span>${fromTime}</span></div><span class="flight-line"></span><div class="flight-airport flight-stop"><strong>${stop}</strong><span>杜拜轉機<br>${stopTime}</span></div><span class="flight-line"></span><div class="flight-airport"><strong>${to}</strong><span>${toTime}</span></div></div></div></article>`;
+function flightRow(label, from, fromTime, stop, stopTime, to, toTime, duration, fromDayOffset = 0, stopDayOffset = 0, toDayOffset = 0) {
+  return `<article class="flight-row"><span class="flight-direction">${icon("plane", 20)}</span><div><div class="flight-title"><strong>${label}</strong><span>${duration}</span></div><div class="flight-route"><div class="flight-airport"><strong>${from}</strong><span>${flightTime(fromTime, fromDayOffset)}</span></div><span class="flight-line"></span><div class="flight-airport flight-stop"><strong>${stop}</strong><span>杜拜轉機<br>${flightTime(stopTime, stopDayOffset)}</span></div><span class="flight-line"></span><div class="flight-airport"><strong>${to}</strong><span>${flightTime(toTime, toDayOffset)}</span></div></div></div></article>`;
+}
+
+function flightTime(time, dayOffset = 0) {
+  return `${time}${dayOffset ? `<small class="flight-day-offset">＋${dayOffset} 日</small>` : ""}`;
 }
 
 function itineraryScreen() {

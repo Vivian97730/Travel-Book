@@ -23,10 +23,14 @@ describe("home overview labels", () => {
   it("keeps the approved flight row labels compact", () => {
     const departure = renderToStaticMarkup(<FlightLegLabel city="桃園" time="00:20" stop={false} />);
     const stop = renderToStaticMarkup(<FlightLegLabel city="杜拜轉機" time="06:15－08:55" stop />);
+    const overnightStop = renderToStaticMarkup(<FlightLegLabel city="杜拜轉機" time="06:25－08:45" stop dayOffset={1} />);
+    const overnightArrival = renderToStaticMarkup(<FlightLegLabel city="桃園" time="20:40" stop={false} dayOffset={1} />);
 
     expect(departure).toBe("<span>00:20</span>");
     expect(departure).not.toContain("桃園");
     expect(stop).toBe("<span>杜拜轉機<br/>06:15－08:55</span>");
+    expect(overnightStop).toBe('<span>杜拜轉機<br/>06:25－08:45<small class="flight-day-offset">＋1 日</small></span>');
+    expect(overnightArrival).toBe('<span>20:40<small class="flight-day-offset">＋1 日</small></span>');
   });
 });
 

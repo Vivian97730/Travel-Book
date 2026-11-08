@@ -58,8 +58,8 @@ export function FlightDuration({ duration }: { duration: string }) {
   return <span>{duration}</span>;
 }
 
-export function FlightLegLabel({ city, time, stop }: { city: string; time: string; stop: boolean }) {
-  return <span>{stop && <>{city}<br /></>}{time}</span>;
+export function FlightLegLabel({ city, time, stop, dayOffset }: { city: string; time: string; stop: boolean; dayOffset?: number }) {
+  return <span>{stop && <>{city}<br /></>}{time}{dayOffset ? <small className="flight-day-offset">＋{dayOffset} 日</small> : null}</span>;
 }
 
 export function HomePage({ repository, online }: { repository: HomeRepository; online: boolean }) {
@@ -224,7 +224,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
                         {index > 0 && <span className="flight-line" />}
                         <div className={`flight-airport ${index === 1 ? "flight-stop" : ""}`}>
                           <strong>{leg.airport}</strong>
-                          <FlightLegLabel city={leg.city} time={leg.time} stop={index === 1} />
+                          <FlightLegLabel city={leg.city} time={leg.time} stop={index === 1} dayOffset={leg.dayOffset} />
                         </div>
                       </div>
                     ))}
