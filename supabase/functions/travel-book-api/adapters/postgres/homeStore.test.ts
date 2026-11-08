@@ -31,17 +31,30 @@ describe("Supabase home store", () => {
       displayTimezone: "Europe/Vienna",
       travelerCount: 4,
       version: 1,
-      flights: [{
-        id: "40000000-0000-4000-8000-000000000001",
-        direction: "去程",
-        legs: [
-          { airport: "TPE", city: "桃園", time: "00:20" },
-          { airport: "VIE", city: "維也納", time: "12:25" },
-        ],
-        departureAt: "2027-02-04T16:20:00+00:00",
-        arrivalAt: "2027-02-05T11:25:00+00:00",
-        durationMinutes: 1_145,
-      }],
+      flights: [
+        {
+          id: "40000000-0000-4000-8000-000000000001",
+          direction: "去程",
+          legs: [
+            { airport: "TPE", city: "桃園", time: "00:20" },
+            { airport: "VIE", city: "維也納", time: "12:25" },
+          ],
+          departureAt: "2027-02-04T16:20:00+00:00",
+          arrivalAt: "2027-02-05T11:25:00+00:00",
+          durationMinutes: 1_145,
+        },
+        {
+          id: "40000000-0000-4000-8000-000000000002",
+          direction: "回程",
+          legs: [
+            { airport: "VIE", city: "維也納", time: "21:45" },
+            { airport: "TPE", city: "桃園", time: "20:40", dayOffset: 1 },
+          ],
+          departureAt: "2027-02-15T20:45:00+00:00",
+          arrivalAt: "2027-02-16T12:40:00+00:00",
+          durationMinutes: 955,
+        },
+      ],
       facts: [{
         id: "50000000-0000-4000-8000-000000000001",
         icon: "globe",
@@ -55,7 +68,10 @@ describe("Supabase home store", () => {
     await expect(store.getHome(tripId)).resolves.toMatchObject({
       dateLabel: "02/05 (五) - 02/15 (一)",
       durationLabel: "11 天 10 夜",
-      flights: [{ direction: "去程", duration: "19 小時 05 分" }],
+      flights: [
+        { direction: "去程", duration: "19 小時 05 分" },
+        { direction: "回程", duration: "15 小時 55 分" },
+      ],
       facts: [{ title: "和台灣的時差", sortOrder: 0 }],
     });
     expect(fetcher).toHaveBeenCalledWith("https://project.supabase.co/rest/v1/rpc/get_trip_home", {

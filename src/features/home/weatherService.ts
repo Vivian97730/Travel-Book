@@ -1,8 +1,16 @@
 import type { WeatherSnapshot } from "./types";
 
-interface Position {
+export interface WeatherPosition {
   latitude: number;
   longitude: number;
+}
+
+type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
+
+export interface WeatherDependencies {
+  getPosition?: () => Promise<WeatherPosition>;
+  fetcher?: Fetcher;
+  now?: () => Date;
 }
 
 interface ReverseGeocodeResponse {
@@ -20,21 +28,28 @@ interface OpenMeteoResponse {
   };
 }
 
-export function isInTaiwan({ latitude, longitude }: Position): boolean {
+export function isInTaiwan({ latitude, longitude }: WeatherPosition): boolean {
   return latitude >= 21.7 && latitude <= 25.5 && longitude >= 119.2 && longitude <= 122.2;
 }
 
-function getPosition(): Promise<GeolocationPosition> {
+function getBrowserPosition(): Promise<WeatherPosition> {
   if (!("geolocation" in navigator)) {
     return Promise.reject(new Error("此裝置不支援定位。"));
   }
 
   return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: false,
-      maximumAge: 0,
-      timeout: 10_000,
-    });
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      }),
+      reject,
+      {
+        enableHighAccuracy: false,
+        maximumAge: 0,
+        timeout: 10_000,
+      },
+    );
   });
 }
 
@@ -45,18 +60,21 @@ function getLocationError(error: unknown): string {
   return "目前無法取得定位或天氣，其他旅程資訊仍可使用。";
 }
 
-export async function loadCurrentWeather(): Promise<WeatherSnapshot> {
+export async function loadCurrentWeather({
+  getPosition = getBrowserPosition,
+  fetcher = fetch,
+  now = () => new Date(),
+}: WeatherDependencies = {}): Promise<WeatherSnapshot> {
   try {
-    const position = await getPosition();
-    const { latitude, longitude } = position.coords;
+    const { latitude, longitude } = await getPosition();
     const query = new URLSearchParams({
       latitude: String(latitude),
       longitude: String(longitude),
     });
 
     const [weatherResponse, placeResponse] = await Promise.all([
-      fetch(`https://api.open-meteo.com/v1/forecast?${query}&current=temperature_2m,weather_code&timezone=auto`),
-      fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?${query}&localityLanguage=zh-TW`),
+      fetcher(`https://api.open-meteo.com/v1/forecast?${query}&current=temperature_2m,weather_code&timezone=auto`),
+      fetcher(`https://api.bigdatacloud.net/data/reverse-geocode-client?${query}&localityLanguage=zh-TW`).catch(() => null),
     ]);
 
     if (!weatherResponse.ok) throw new Error("WEATHER_UNAVAILABLE");
@@ -67,14 +85,19 @@ export async function loadCurrentWeather(): Promise<WeatherSnapshot> {
     }
 
     let place: ReverseGeocodeResponse = {};
-    if (placeResponse.ok) place = (await placeResponse.json()) as ReverseGeocodeResponse;
+    if (placeResponse?.ok) {
+      place = await placeResponse.json().catch(() => ({})) as ReverseGeocodeResponse;
+    }
+    const countryCode = place.countryCode?.toUpperCase() || null;
+    const inTaiwan = countryCode ? countryCode === "TW" : isInTaiwan({ latitude, longitude });
 
     return {
       temperature: current.temperature_2m,
       weatherCode: current.weather_code,
       placeLabel: place.locality || place.city || place.principalSubdivision || "目前位置",
-      countryCode: place.countryCode?.toUpperCase() || (isInTaiwan({ latitude, longitude }) ? "TW" : null),
-      updatedAt: current.time || new Date().toISOString(),
+      countryCode: countryCode || (inTaiwan ? "TW" : null),
+      inTaiwan,
+      updatedAt: current.time || now().toISOString(),
       source: "Open-Meteo",
     };
   } catch (error) {

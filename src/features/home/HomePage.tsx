@@ -58,6 +58,10 @@ export function FlightDuration({ duration }: { duration: string }) {
   return <span>{duration}</span>;
 }
 
+export function shouldShowDepartureCountdown(weather: WeatherState): boolean {
+  return weather.status !== "ready" || weather.snapshot.inTaiwan;
+}
+
 export function HomePage({ repository, online }: { repository: HomeRepository; online: boolean }) {
   const [home, setHome] = useState<TripHome | null>(null);
   const [facts, setFacts] = useState<TravelFact[]>([]);
@@ -94,7 +98,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
       .catch((error: Error) => setWeather({ status: "error", message: error.message }));
   }, [online]);
 
-  const countdownVisible = weather.status !== "ready" || weather.snapshot.countryCode === "TW" || weather.snapshot.countryCode === null;
+  const countdownVisible = shouldShowDepartureCountdown(weather);
   const countdown = useMemo(() => formatDepartureCountdown(now), [now]);
 
   if (!home) {

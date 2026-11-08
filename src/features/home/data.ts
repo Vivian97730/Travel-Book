@@ -10,7 +10,7 @@ export const initialTripHome: TripHome = {
   flights: [
     {
       direction: "去程",
-      duration: "16 小時 05 分",
+      duration: "19 小時 05 分",
       legs: [
         { airport: "TPE", city: "桃園", time: "00:20" },
         { airport: "DXB", city: "杜拜轉機", time: "06:15－08:55" },
@@ -19,7 +19,7 @@ export const initialTripHome: TripHome = {
     },
     {
       direction: "回程",
-      duration: "16 小時 55 分",
+      duration: "15 小時 55 分",
       legs: [
         { airport: "VIE", city: "維也納", time: "21:45" },
         { airport: "DXB", city: "杜拜轉機", time: "06:25－08:45", dayOffset: 1 },
