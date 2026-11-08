@@ -1,5 +1,9 @@
 const DEPARTURE_AT = new Date("2027-02-05T00:20:00+08:00");
 
+export function isDeparturePending(now: Date): boolean {
+  return now.getTime() < DEPARTURE_AT.getTime();
+}
+
 export function formatDepartureCountdown(now: Date): string {
   const difference = DEPARTURE_AT.getTime() - now.getTime();
   if (difference <= 0) return "旅程已開始";

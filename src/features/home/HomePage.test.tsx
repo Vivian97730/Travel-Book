@@ -4,7 +4,6 @@ import {
   FlightDuration,
   HomeSaveRecovery,
   homeSaveFailureFor,
-  shouldShowDepartureCountdown,
   tripRangeText,
 } from "./HomePage";
 
@@ -18,31 +17,6 @@ describe("home overview labels", () => {
     const html = renderToStaticMarkup(<FlightDuration duration="19 小時 05 分" />);
     expect(html).toBe("<span>19 小時 05 分</span>");
     expect(html).not.toContain("總旅行時間");
-  });
-});
-
-describe("home location states", () => {
-  const snapshot = {
-    temperature: 6,
-    weatherCode: 2,
-    placeLabel: "目前位置",
-    countryCode: "TW",
-    inTaiwan: true,
-    updatedAt: "2027-02-01T12:00:00+08:00",
-    source: "Open-Meteo",
-  };
-
-  it("shows the countdown in Taiwan and hides it after leaving Taiwan", () => {
-    expect(shouldShowDepartureCountdown({ status: "ready", snapshot })).toBe(true);
-    expect(shouldShowDepartureCountdown({
-      status: "ready",
-      snapshot: { ...snapshot, countryCode: "AT", inTaiwan: false },
-    })).toBe(false);
-  });
-
-  it("keeps the countdown when location or weather cannot be determined", () => {
-    expect(shouldShowDepartureCountdown({ status: "loading" })).toBe(true);
-    expect(shouldShowDepartureCountdown({ status: "error", message: "定位失敗" })).toBe(true);
   });
 });
 

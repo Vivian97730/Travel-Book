@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import heroImage from "../../../dist/assets/hero-winter-pine.jpg";
-import { formatDepartureCountdown } from "./countdown";
+import { formatDepartureCountdown, isDeparturePending } from "./countdown";
 import type { HomeRepository } from "./homeRepository";
 import type { FactIcon, TravelFact, TripHome, WeatherState } from "./types";
 import { loadCurrentWeather, weatherDescription } from "./weatherService";
@@ -58,10 +58,6 @@ export function FlightDuration({ duration }: { duration: string }) {
   return <span>{duration}</span>;
 }
 
-export function shouldShowDepartureCountdown(weather: WeatherState): boolean {
-  return weather.status !== "ready" || weather.snapshot.inTaiwan;
-}
-
 export function HomePage({ repository, online }: { repository: HomeRepository; online: boolean }) {
   const [home, setHome] = useState<TripHome | null>(null);
   const [facts, setFacts] = useState<TravelFact[]>([]);
@@ -98,7 +94,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
       .catch((error: Error) => setWeather({ status: "error", message: error.message }));
   }, [online]);
 
-  const countdownVisible = shouldShowDepartureCountdown(weather);
+  const countdownVisible = isDeparturePending(now);
   const countdown = useMemo(() => formatDepartureCountdown(now), [now]);
 
   if (!home) {
