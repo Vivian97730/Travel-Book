@@ -4,8 +4,14 @@ import { hashForRoute, parseAppHash, type Route } from "./app/routing";
 import { Icon, type IconName } from "./components/Icon";
 import { ApiHomeRepository } from "./features/home/apiHomeRepository";
 import { HomePage } from "./features/home/HomePage";
+import { SnapshotHomeRepository } from "./features/home/snapshotHomeRepository";
 import { ApiItineraryRepository } from "./features/itinerary/apiItineraryRepository";
 import { ItineraryPage } from "./features/itinerary/ItineraryPage";
+import {
+  deleteHomeSnapshotForToken,
+  getHomeSnapshotForToken,
+} from "./features/offline/homeSnapshotRepository";
+import { IndexedDbHomeSnapshotRepository } from "./features/offline/indexedDbHomeSnapshotRepository";
 import { ApiClient, ApiClientError } from "./shared/api/apiClient";
 import type { AccessVerifyResponse } from "@travel-book/contracts";
 
@@ -42,9 +48,18 @@ export default function App() {
   const [route, setRoute] = useState<Route>(routeFromCurrentHash);
   const [online, setOnline] = useState(navigator.onLine);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  const homeSnapshots = useMemo(() => new IndexedDbHomeSnapshotRepository(), []);
   const homeRepository = useMemo(
-    () => apiBaseUrl && accessToken ? new ApiHomeRepository(apiBaseUrl, accessToken) : null,
-    [accessToken, apiBaseUrl],
+    () => apiBaseUrl && accessToken && verifiedAccess
+      ? new SnapshotHomeRepository(
+          new ApiHomeRepository(apiBaseUrl, accessToken),
+          homeSnapshots,
+          accessToken,
+          verifiedAccess,
+          () => online,
+        )
+      : null,
+    [accessToken, apiBaseUrl, homeSnapshots, online, verifiedAccess],
   );
   const itineraryRepository = useMemo(
     () => apiBaseUrl && accessToken ? new ApiItineraryRepository(apiBaseUrl, accessToken) : null,
@@ -62,7 +77,18 @@ export default function App() {
       return () => { active = false; };
     }
     if (!online) {
-      setAccessState("offline");
+      setAccessState("checking");
+      getHomeSnapshotForToken(homeSnapshots, accessToken)
+        .then((snapshot) => {
+          if (!active) return;
+          setVerifiedAccess(snapshot?.access ?? null);
+          setAccessState("offline");
+        })
+        .catch(() => {
+          if (!active) return;
+          setVerifiedAccess(null);
+          setAccessState("offline");
+        });
       return () => { active = false; };
     }
 
@@ -72,9 +98,11 @@ export default function App() {
         setVerifiedAccess(verified);
         setAccessState("ready");
       }
-    }).catch((error: unknown) => {
+    }).catch(async (error: unknown) => {
       if (!active) return;
       if (error instanceof ApiClientError && error.code === "ACCESS_DENIED") {
+        await deleteHomeSnapshotForToken(homeSnapshots, accessToken).catch(() => undefined);
+        if (!active) return;
         accessStore.clear();
         setAccessToken(null);
         setVerifiedAccess(null);
@@ -84,7 +112,7 @@ export default function App() {
       }
     });
     return () => { active = false; };
-  }, [accessStore, accessToken, apiBaseUrl, online]);
+  }, [accessStore, accessToken, apiBaseUrl, homeSnapshots, online]);
 
   useEffect(() => {
     const updateRoute = () => {
@@ -97,6 +125,7 @@ export default function App() {
       });
       if (captured) {
         setAccessToken(captured);
+        setVerifiedAccess(null);
         setRoute("itinerary");
       } else {
         setRoute(routeFromCurrentHash());
