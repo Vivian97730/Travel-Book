@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   FlightDuration,
+  FlightLegLabel,
   HomeSaveRecovery,
   homeSaveFailureFor,
   tripRangeText,
@@ -17,6 +18,15 @@ describe("home overview labels", () => {
     const html = renderToStaticMarkup(<FlightDuration duration="19 小時 05 分" />);
     expect(html).toBe("<span>19 小時 05 分</span>");
     expect(html).not.toContain("總旅行時間");
+  });
+
+  it("keeps the approved flight row labels compact", () => {
+    const departure = renderToStaticMarkup(<FlightLegLabel city="桃園" time="00:20" stop={false} />);
+    const stop = renderToStaticMarkup(<FlightLegLabel city="杜拜轉機" time="06:15－08:55" stop />);
+
+    expect(departure).toBe("<span>00:20</span>");
+    expect(departure).not.toContain("桃園");
+    expect(stop).toBe("<span>杜拜轉機<br/>06:15－08:55</span>");
   });
 });
 

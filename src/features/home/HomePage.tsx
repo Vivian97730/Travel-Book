@@ -58,6 +58,10 @@ export function FlightDuration({ duration }: { duration: string }) {
   return <span>{duration}</span>;
 }
 
+export function FlightLegLabel({ city, time, stop }: { city: string; time: string; stop: boolean }) {
+  return <span>{stop && <>{city}<br /></>}{time}</span>;
+}
+
 export function HomePage({ repository, online }: { repository: HomeRepository; online: boolean }) {
   const [home, setHome] = useState<TripHome | null>(null);
   const [facts, setFacts] = useState<TravelFact[]>([]);
@@ -69,6 +73,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
   const [weather, setWeather] = useState<WeatherState>({ status: "idle" });
   const [now, setNow] = useState(() => new Date());
   const requestedWeather = useRef(false);
+  const editCancelButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -93,6 +98,10 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
       .then((snapshot) => setWeather({ status: "ready", snapshot }))
       .catch((error: Error) => setWeather({ status: "error", message: error.message }));
   }, [online]);
+
+  useEffect(() => {
+    if (editing) editCancelButtonRef.current?.focus();
+  }, [editing]);
 
   const countdownVisible = isDeparturePending(now);
   const countdown = useMemo(() => formatDepartureCountdown(now), [now]);
@@ -215,7 +224,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
                         {index > 0 && <span className="flight-line" />}
                         <div className={`flight-airport ${index === 1 ? "flight-stop" : ""}`}>
                           <strong>{leg.airport}</strong>
-                          <span>{leg.city}<br />{leg.time}{leg.dayOffset ? `（＋${leg.dayOffset} 日）` : ""}</span>
+                          <FlightLegLabel city={leg.city} time={leg.time} stop={index === 1} />
                         </div>
                       </div>
                     ))}
@@ -233,7 +242,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
           {!editing ? (
             <button className="text-button" type="button" onClick={startEditing} disabled={!online}><Icon name="edit" size={17} />編輯</button>
           ) : (
-            <div className="section-actions"><button className="secondary-button" type="button" onClick={cancelEditing}>取消</button><button className="primary-button" type="button" onClick={saveFacts} disabled={saving || !online}><Icon name="check" size={17} />{saving ? "儲存中" : "儲存"}</button></div>
+            <div className="section-actions"><button ref={editCancelButtonRef} className="secondary-button" type="button" onClick={cancelEditing}>取消</button><button className="primary-button" type="button" onClick={saveFacts} disabled={saving || !online}><Icon name="check" size={17} />{saving ? "儲存中" : "儲存"}</button></div>
           )}
         </div>
         {!online && <p className="inline-notice"><Icon name="info" size={16} />目前離線，旅途小知識僅供查看。</p>}
@@ -294,5 +303,52 @@ function weatherStatus(state: WeatherState, online: boolean): string {
 }
 
 function FactDialog({ value, onChange, onClose, onSubmit }: { value: FactFormValue; onChange: (value: FactFormValue) => void; onClose: () => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
-  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="fact-dialog-title"><form className="dialog-form" onSubmit={onSubmit}><header className="dialog-head"><h2 id="fact-dialog-title">{value.id ? "編輯小知識" : "新增小知識"}</h2><button className="icon-button" type="button" onClick={onClose} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="fact-icon">圖示</label><select className="field" id="fact-icon" value={value.icon} onChange={(event) => onChange({ ...value, icon: event.target.value as FactIcon })}>{factIconOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div><div className="field-group"><label htmlFor="fact-title">標題</label><input className="field" id="fact-title" value={value.title} maxLength={40} required onChange={(event) => onChange({ ...value, title: event.target.value })} /></div><div className="field-group"><label htmlFor="fact-content">內容</label><textarea className="field" id="fact-content" value={value.content} maxLength={160} required onChange={(event) => onChange({ ...value, content: event.target.value })} /></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onClose}>取消</button><button className="primary-button" type="submit">套用</button></div></form></section></div>;
+  const dialogRef = useDialogAccessibility(onClose);
+  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="fact-dialog-title"><form className="dialog-form" onSubmit={onSubmit}><header className="dialog-head"><h2 id="fact-dialog-title">{value.id ? "編輯小知識" : "新增小知識"}</h2><button className="icon-button" type="button" onClick={onClose} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="fact-icon">圖示</label><select className="field" id="fact-icon" value={value.icon} data-dialog-initial-focus onChange={(event) => onChange({ ...value, icon: event.target.value as FactIcon })}>{factIconOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div><div className="field-group"><label htmlFor="fact-title">標題</label><input className="field" id="fact-title" value={value.title} maxLength={40} required onChange={(event) => onChange({ ...value, title: event.target.value })} /></div><div className="field-group"><label htmlFor="fact-content">內容</label><textarea className="field" id="fact-content" value={value.content} maxLength={160} required onChange={(event) => onChange({ ...value, content: event.target.value })} /></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onClose}>取消</button><button className="primary-button" type="submit">套用</button></div></form></section></div>;
+}
+
+function useDialogAccessibility(onClose: () => void) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusableSelector = "button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])";
+    const focusable = () => [...dialog.querySelectorAll<HTMLElement>(focusableSelector)]
+      .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+
+    (dialog.querySelector<HTMLElement>("[data-dialog-initial-focus]") ?? focusable()[0])?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!dialog?.contains(document.activeElement)) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      if (!elements.length) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, []);
+
+  return dialogRef;
 }
