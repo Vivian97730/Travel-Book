@@ -1,13 +1,15 @@
-insert into app_private.trips (id, title, start_date, end_date, display_timezone)
+insert into app_private.trips (id, title, traveler_count, start_date, end_date, display_timezone)
 values (
   '11111111-1111-4111-8111-111111111111',
   '2027 奧地利・匈牙利之旅',
+  4,
   '2027-02-05',
   '2027-02-15',
   'Europe/Vienna'
 )
 on conflict (id) do update set
   title = excluded.title,
+  traveler_count = excluded.traveler_count,
   start_date = excluded.start_date,
   end_date = excluded.end_date,
   display_timezone = excluded.display_timezone,
