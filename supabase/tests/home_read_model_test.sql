@@ -2,12 +2,22 @@ begin;
 
 set local search_path = public, extensions, pg_catalog;
 
-select plan(34);
+select plan(35);
 
 select has_table('app_private', 'flights', 'flights table exists');
 select has_table('app_private', 'travel_facts', 'travel facts table exists');
 select has_column('app_private', 'trips', 'subtitle', 'trips include the home subtitle');
 select has_column('app_private', 'trips', 'traveler_count', 'trips include the traveler count');
+select ok(
+  (
+    select is_nullable = 'YES'
+    from information_schema.columns
+    where table_schema = 'app_private'
+      and table_name = 'trips'
+      and column_name = 'subtitle'
+  ),
+  'trip subtitle remains nullable'
+);
 
 select is(
   (select relrowsecurity from pg_class where oid = 'app_private.flights'::regclass),

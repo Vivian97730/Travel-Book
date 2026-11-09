@@ -8,7 +8,6 @@ set
   traveler_count = 4;
 
 alter table app_private.trips
-  alter column subtitle set not null,
   alter column traveler_count set not null,
   add constraint trips_subtitle_length check (length(trim(subtitle)) between 1 and 160),
   add constraint trips_traveler_count_range check (traveler_count between 1 and 20);
