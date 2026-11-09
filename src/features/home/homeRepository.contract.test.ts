@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BrowserHomeRepository, type HomeStorage } from "./browserHomeRepository";
 import { initialTripHome } from "./data";
 import { FakeHomeRepository } from "./fakeHomeRepository";
+import { ApiHomeRepository } from "./apiHomeRepository";
 import type { HomeRepository } from "./homeRepository";
 
 function createMemoryStorage(): HomeStorage {
@@ -13,8 +14,8 @@ function createMemoryStorage(): HomeStorage {
   };
 }
 
-function homeRepositoryContract(name: string, createRepository: () => HomeRepository) {
-  describe(`${name} HomeRepository contract`, () => {
+function homeReadRepositoryContract(name: string, createRepository: () => Pick<HomeRepository, "getTripHome">) {
+  describe(`${name} HomeRepository read contract`, () => {
     it("returns isolated home data", async () => {
       const repository = createRepository();
       const first = await repository.getTripHome();
@@ -23,7 +24,11 @@ function homeRepositoryContract(name: string, createRepository: () => HomeReposi
       const second = await repository.getTripHome();
       expect(second.facts[0].title).toBe(initialTripHome.facts[0].title);
     });
+  });
+}
 
+function homeWriteRepositoryContract(name: string, createRepository: () => HomeRepository) {
+  describe(`${name} HomeRepository write contract`, () => {
     it("normalizes facts and advances the resource version", async () => {
       const repository = createRepository();
       const current = await repository.getTripHome();
@@ -50,5 +55,12 @@ function homeRepositoryContract(name: string, createRepository: () => HomeReposi
   });
 }
 
-homeRepositoryContract("Fake", () => new FakeHomeRepository(initialTripHome));
-homeRepositoryContract("Browser", () => new BrowserHomeRepository(createMemoryStorage()));
+homeReadRepositoryContract("Fake", () => new FakeHomeRepository(initialTripHome));
+homeReadRepositoryContract("Browser", () => new BrowserHomeRepository(createMemoryStorage()));
+homeReadRepositoryContract("API", () => new ApiHomeRepository(
+  "https://api.example",
+  "private-token",
+  async () => Response.json(structuredClone(initialTripHome)),
+));
+homeWriteRepositoryContract("Fake", () => new FakeHomeRepository(initialTripHome));
+homeWriteRepositoryContract("Browser", () => new BrowserHomeRepository(createMemoryStorage()));

@@ -1,4 +1,9 @@
 const DEPARTURE_AT = new Date("2027-02-05T00:20:00+08:00");
+const DEPARTURE_DATE_START = new Date("2027-02-05T00:00:00+08:00");
+
+export function isDeparturePending(now: Date): boolean {
+  return now.getTime() < DEPARTURE_DATE_START.getTime();
+}
 
 export function formatDepartureCountdown(now: Date): string {
   const difference = DEPARTURE_AT.getTime() - now.getTime();

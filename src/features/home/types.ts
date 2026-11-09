@@ -5,6 +5,7 @@ export interface WeatherSnapshot {
   weatherCode: number;
   placeLabel: string;
   countryCode: string | null;
+  inTaiwan: boolean;
   updatedAt: string;
   source: string;
 }

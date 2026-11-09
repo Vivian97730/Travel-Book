@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import heroImage from "../../../dist/assets/hero-winter-pine.jpg";
-import { formatDepartureCountdown } from "./countdown";
+import { formatDepartureCountdown, isDeparturePending } from "./countdown";
 import type { HomeRepository } from "./homeRepository";
 import type { FactIcon, TravelFact, TripHome, WeatherState } from "./types";
 import { loadCurrentWeather, weatherDescription } from "./weatherService";
@@ -21,8 +21,45 @@ interface FactFormValue {
   content: string;
 }
 
+export interface HomeSaveFailure {
+  kind: "conflict" | "retry";
+  message: string;
+  actionLabel: "重新載入" | "重試保存";
+}
+
+export function homeSaveFailureFor(error: unknown): HomeSaveFailure {
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? error.code
+    : error instanceof Error
+      ? error.message
+      : null;
+  return code === "VERSION_CONFLICT"
+    ? {
+        kind: "conflict",
+        message: "資料已由其他裝置更新，草稿仍保留；請重新載入最新小知識。",
+        actionLabel: "重新載入",
+      }
+    : {
+        kind: "retry",
+        message: "目前無法儲存小知識，草稿仍保留；請稍後重試。",
+        actionLabel: "重試保存",
+      };
+}
+
 function createEmptyFact(): FactFormValue {
   return { icon: "info", title: "", content: "" };
+}
+
+export function tripRangeText(home: Pick<TripHome, "dateLabel" | "durationLabel">): string {
+  return `${home.dateLabel}・${home.durationLabel}`;
+}
+
+export function FlightDuration({ duration }: { duration: string }) {
+  return <span>{duration}</span>;
+}
+
+export function FlightLegLabel({ city, time, stop, dayOffset }: { city: string; time: string; stop: boolean; dayOffset?: number }) {
+  return <span>{stop && <>{city}<br /></>}{time}{dayOffset ? <small className="flight-day-offset">＋{dayOffset} 日</small> : null}</span>;
 }
 
 export function HomePage({ repository, online }: { repository: HomeRepository; online: boolean }) {
@@ -32,9 +69,11 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
   const [saving, setSaving] = useState(false);
   const [formValue, setFormValue] = useState<FactFormValue | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [saveFailure, setSaveFailure] = useState<HomeSaveFailure | null>(null);
   const [weather, setWeather] = useState<WeatherState>({ status: "idle" });
   const [now, setNow] = useState(() => new Date());
   const requestedWeather = useRef(false);
+  const editCancelButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -60,7 +99,11 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
       .catch((error: Error) => setWeather({ status: "error", message: error.message }));
   }, [online]);
 
-  const countdownVisible = weather.status !== "ready" || weather.snapshot.countryCode === "TW" || weather.snapshot.countryCode === null;
+  useEffect(() => {
+    if (editing) editCancelButtonRef.current?.focus();
+  }, [editing]);
+
+  const countdownVisible = isDeparturePending(now);
   const countdown = useMemo(() => formatDepartureCountdown(now), [now]);
 
   if (!home) {
@@ -72,6 +115,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
     setFacts(structuredClone(home!.facts));
     setEditing(true);
     setMessage(null);
+    setSaveFailure(null);
   }
 
   function cancelEditing() {
@@ -79,24 +123,47 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
     setEditing(false);
     setFormValue(null);
     setMessage(null);
+    setSaveFailure(null);
   }
 
   async function saveFacts() {
-    if (!facts.length || facts.some((fact) => !fact.title.trim() || !fact.content.trim())) {
+    if (!online) return;
+    if (facts.some((fact) => !fact.title.trim() || !fact.content.trim())) {
       setMessage("每張小知識都需要標題與內容。 ");
       return;
     }
 
     setSaving(true);
     setMessage(null);
+    setSaveFailure(null);
     try {
       const saved = await repository.saveTravelFacts(facts, home!.version);
       setHome(saved);
       setFacts(saved.facts);
       setEditing(false);
-      setMessage("旅途小知識已儲存於這部裝置。 ");
-    } catch (error) {
-      setMessage(error instanceof Error && error.message === "VERSION_CONFLICT" ? "資料已更新，請重新載入後再試。 " : "目前無法儲存，請稍後再試。 ");
+      setMessage("旅途小知識已儲存。 ");
+    } catch (caught) {
+      setSaveFailure(homeSaveFailureFor(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function reloadAfterConflict() {
+    if (!online) return;
+    setSaving(true);
+    try {
+      const refreshed = await repository.getTripHome();
+      setHome(refreshed);
+      setFacts(refreshed.facts);
+      setEditing(false);
+      setSaveFailure(null);
+    } catch {
+      setSaveFailure({
+        kind: "conflict",
+        message: "目前無法重新載入最新小知識，草稿仍保留；請稍後再試。",
+        actionLabel: "重新載入",
+      });
     } finally {
       setSaving(false);
     }
@@ -131,7 +198,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
           <div className="hero-veil" />
           <div className="hero-copy">
             <div className="hero-heading">
-              <span className="trip-range">{home.dateLabel}・{home.durationLabel}</span>
+              <span className="trip-range">{tripRangeText(home)}</span>
               <h2 className="hero-title">{home.title}<small>{home.subtitle}</small></h2>
             </div>
             <div className="hero-details">
@@ -150,14 +217,14 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
               <article className="flight-row" key={flight.direction}>
                 <span className="flight-direction"><Icon name="plane" size={20} /></span>
                 <div>
-                  <div className="flight-title"><strong>{flight.direction}</strong><span>總旅行時間 {flight.duration}</span></div>
+                  <div className="flight-title"><strong>{flight.direction}</strong><FlightDuration duration={flight.duration} /></div>
                   <div className="flight-route">
                     {flight.legs.map((leg, index) => (
                       <div className="flight-segment" key={`${flight.direction}-${leg.airport}`}>
                         {index > 0 && <span className="flight-line" />}
                         <div className={`flight-airport ${index === 1 ? "flight-stop" : ""}`}>
                           <strong>{leg.airport}</strong>
-                          <span>{leg.city}<br />{leg.time}{leg.dayOffset ? `（＋${leg.dayOffset} 日）` : ""}</span>
+                          <FlightLegLabel city={leg.city} time={leg.time} stop={index === 1} dayOffset={leg.dayOffset} />
                         </div>
                       </div>
                     ))}
@@ -175,7 +242,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
           {!editing ? (
             <button className="text-button" type="button" onClick={startEditing} disabled={!online}><Icon name="edit" size={17} />編輯</button>
           ) : (
-            <div className="section-actions"><button className="secondary-button" type="button" onClick={cancelEditing}>取消</button><button className="primary-button" type="button" onClick={saveFacts} disabled={saving}><Icon name="check" size={17} />{saving ? "儲存中" : "儲存"}</button></div>
+            <div className="section-actions"><button ref={editCancelButtonRef} className="secondary-button" type="button" onClick={cancelEditing}>取消</button><button className="primary-button" type="button" onClick={saveFacts} disabled={saving || !online}><Icon name="check" size={17} />{saving ? "儲存中" : "儲存"}</button></div>
           )}
         </div>
         {!online && <p className="inline-notice"><Icon name="info" size={16} />目前離線，旅途小知識僅供查看。</p>}
@@ -193,9 +260,29 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
       </section>
 
     </main>
+    {saveFailure && <HomeSaveRecovery
+      failure={saveFailure}
+      busy={saving}
+      online={online}
+      onRecover={saveFailure.kind === "conflict" ? reloadAfterConflict : saveFacts}
+    />}
     {formValue && <FactDialog value={formValue} onChange={setFormValue} onClose={() => setFormValue(null)} onSubmit={submitFact} />}
     </>
   );
+}
+
+export function HomeSaveRecovery({ failure, busy, online, onRecover }: {
+  failure: HomeSaveFailure;
+  busy: boolean;
+  online: boolean;
+  onRecover(): void;
+}) {
+  return <section className="itinerary-save-error" aria-label="小知識保存狀態">
+    <p role="alert">{failure.message}</p>
+    <button className="primary-button" type="button" disabled={busy || !online} onClick={onRecover}>
+      {busy ? "處理中" : failure.actionLabel}
+    </button>
+  </section>;
 }
 
 function WeatherMetric({ state, online }: { state: WeatherState; online: boolean }) {
@@ -216,5 +303,52 @@ function weatherStatus(state: WeatherState, online: boolean): string {
 }
 
 function FactDialog({ value, onChange, onClose, onSubmit }: { value: FactFormValue; onChange: (value: FactFormValue) => void; onClose: () => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
-  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="fact-dialog-title"><form className="dialog-form" onSubmit={onSubmit}><header className="dialog-head"><h2 id="fact-dialog-title">{value.id ? "編輯小知識" : "新增小知識"}</h2><button className="icon-button" type="button" onClick={onClose} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="fact-icon">圖示</label><select className="field" id="fact-icon" value={value.icon} onChange={(event) => onChange({ ...value, icon: event.target.value as FactIcon })}>{factIconOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div><div className="field-group"><label htmlFor="fact-title">標題</label><input className="field" id="fact-title" value={value.title} maxLength={40} required onChange={(event) => onChange({ ...value, title: event.target.value })} /></div><div className="field-group"><label htmlFor="fact-content">內容</label><textarea className="field" id="fact-content" value={value.content} maxLength={160} required onChange={(event) => onChange({ ...value, content: event.target.value })} /></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onClose}>取消</button><button className="primary-button" type="submit">套用</button></div></form></section></div>;
+  const dialogRef = useDialogAccessibility(onClose);
+  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="fact-dialog-title"><form className="dialog-form" onSubmit={onSubmit}><header className="dialog-head"><h2 id="fact-dialog-title">{value.id ? "編輯小知識" : "新增小知識"}</h2><button className="icon-button" type="button" onClick={onClose} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="fact-icon">圖示</label><select className="field" id="fact-icon" value={value.icon} data-dialog-initial-focus onChange={(event) => onChange({ ...value, icon: event.target.value as FactIcon })}>{factIconOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div><div className="field-group"><label htmlFor="fact-title">標題</label><input className="field" id="fact-title" value={value.title} maxLength={40} required onChange={(event) => onChange({ ...value, title: event.target.value })} /></div><div className="field-group"><label htmlFor="fact-content">內容</label><textarea className="field" id="fact-content" value={value.content} maxLength={160} required onChange={(event) => onChange({ ...value, content: event.target.value })} /></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onClose}>取消</button><button className="primary-button" type="submit">套用</button></div></form></section></div>;
+}
+
+function useDialogAccessibility(onClose: () => void) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusableSelector = "button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])";
+    const focusable = () => [...dialog.querySelectorAll<HTMLElement>(focusableSelector)]
+      .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+
+    (dialog.querySelector<HTMLElement>("[data-dialog-initial-focus]") ?? focusable()[0])?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!dialog?.contains(document.activeElement)) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      if (!elements.length) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, []);
+
+  return dialogRef;
 }
