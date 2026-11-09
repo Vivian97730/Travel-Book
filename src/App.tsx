@@ -13,6 +13,8 @@ import {
 } from "./features/offline/homeSnapshotRepository";
 import { IndexedDbHomeSnapshotRepository } from "./features/offline/indexedDbHomeSnapshotRepository";
 import { ApiClient, ApiClientError } from "./shared/api/apiClient";
+import { ApiStaysRepository } from "./features/stays/apiStaysRepository";
+import { StaysPage } from "./features/stays/StaysPage";
 import type { AccessVerifyResponse } from "@travel-book/contracts";
 
 const routeItems = [
@@ -48,6 +50,10 @@ export default function App() {
   const [route, setRoute] = useState<Route>(routeFromCurrentHash);
   const [online, setOnline] = useState(navigator.onLine);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  const staysRepository = useMemo(
+    () => apiBaseUrl && accessToken ? new ApiStaysRepository(apiBaseUrl, accessToken) : null,
+    [apiBaseUrl, accessToken],
+  );
   const homeSnapshots = useMemo(() => new IndexedDbHomeSnapshotRepository(), []);
   const homeRepository = useMemo(
     () => apiBaseUrl && accessToken && verifiedAccess
@@ -152,7 +158,7 @@ export default function App() {
 
   return <div className="app-shell">
     <header className="topbar"><button className="brand brand-button" type="button" onClick={() => navigate("itinerary")}><span className="brand-mark">旅</span><span>Travel Book</span></button><div className="topbar-side"><span className="sync-label">{online ? "首頁功能開發版" : "離線唯讀"}</span><span className="avatar" aria-label="4 位同行者">4 人</span></div></header>
-    {route === "home" ? <HomePage repository={homeRepository} online={online} /> : route === "itinerary" ? <ItineraryPage repository={itineraryRepository} trip={verifiedAccess.trip} online={online} /> : <ComingSoon route={route} onHome={() => navigate("home")} />}
+    {route === "home" ? <HomePage repository={homeRepository} online={online} /> : route === "itinerary" ? <ItineraryPage repository={itineraryRepository} trip={verifiedAccess.trip} online={online} /> : route === "stays" && staysRepository ? <StaysPage repository={staysRepository} online={online} startDate={verifiedAccess.trip.startDate} endDate={verifiedAccess.trip.endDate} /> : <ComingSoon route={route} onHome={() => navigate("home")} />}
     <nav className="bottom-nav" aria-label="主要導覽">
       {routeItems.map(([value, icon, label]) => <button className="nav-button" type="button" key={value} onClick={() => navigate(value)} aria-current={route === value ? "page" : undefined}><Icon name={icon} size={20} /><span>{label}</span></button>)}
     </nav>

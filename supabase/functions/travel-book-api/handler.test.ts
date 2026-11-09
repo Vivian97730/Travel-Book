@@ -26,6 +26,10 @@ const tripHome = {
 
 function dependencies(verify = vi.fn(async () => verifiedAccess)): HandlerDependencies {
   return {
+    staysStore: {
+      getStays: vi.fn(async () => ({ schemaVersion: 1 as const, stays: [] })),
+      mutateStay: vi.fn(async () => ({ schemaVersion: 1 as const, stays: [] })),
+    },
     accessStore: { verify },
     homeStore: {
       getHome: vi.fn(async () => tripHome),
@@ -55,6 +59,52 @@ function dependencies(verify = vi.fn(async () => verifiedAccess)): HandlerDepend
 }
 
 describe("travel-book-api handler", () => {
+  it("authenticates and validates stay mutations before calling the trip-scoped store", async () => {
+    const input = { name: "測試住宿", city: "維也納", address: "測試地址", startDate: "2027-02-05", endDate: "2027-02-08", checkin: "15:00", checkout: "11:00", photo: null };
+    const headers = { authorization: "Bearer test-token", "content-type": "application/json", "idempotency-key": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+    const deps = dependencies();
+    expect((await handleRequest(new Request("http://localhost/v1/stays", { method: "POST", headers, body: JSON.stringify(input) }), deps)).status).toBe(201);
+    expect(deps.staysStore.mutateStay).toHaveBeenCalledWith(verifiedAccess.trip.id, "create", null, input, 0, headers["idempotency-key"]);
+    const invalid = dependencies();
+    expect((await handleRequest(new Request("http://localhost/v1/stays", { method: "POST", headers, body: "{}" }), invalid)).status).toBe(422);
+    expect(invalid.staysStore.mutateStay).not.toHaveBeenCalled();
+    const missing = dependencies();
+    expect((await handleRequest(new Request("http://localhost/v1/stays", { method: "POST", body: JSON.stringify(input) }), missing)).status).toBe(401);
+    expect(missing.staysStore.mutateStay).not.toHaveBeenCalled();
+    deps.staysStore.mutateStay = vi.fn(async () => { throw Object.assign(new Error("STAYS_STORE_UNAVAILABLE"), { code: "VERSION_CONFLICT" }); });
+    const conflict = await handleRequest(new Request("http://localhost/v1/stays/60000000-0000-4000-8000-000000000001", { method: "PATCH", headers, body: JSON.stringify({ ...input, expectedVersion: 1 }) }), deps);
+    expect(conflict.status).toBe(409);
+    expect((await conflict.json()).error.code).toBe("VERSION_CONFLICT");
+  });
+  it("requires delete versions and maps missing stays without leaking the database", async () => {
+    const headers = { authorization: "Bearer test-token", "idempotency-key": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+    const url = "http://localhost/v1/stays/60000000-0000-4000-8000-000000000001";
+    const deps = dependencies();
+    expect((await handleRequest(new Request(url, { method: "DELETE", headers, body: "{}" }), deps)).status).toBe(422);
+    expect(deps.staysStore.mutateStay).not.toHaveBeenCalled();
+    deps.staysStore.mutateStay = vi.fn(async () => { throw Object.assign(new Error("STAYS_STORE_UNAVAILABLE"), { code: "RESOURCE_NOT_FOUND" }); });
+    expect((await handleRequest(new Request(url, { method: "DELETE", headers, body: '{"expectedVersion":1}' }), deps)).status).toBe(404);
+    deps.staysStore.mutateStay = vi.fn(async () => { throw new Error("secret database details"); });
+    const failure = await handleRequest(new Request(url, { method: "DELETE", headers, body: '{"expectedVersion":1}' }), deps);
+    expect(failure.status).toBe(503);
+    expect(await failure.text()).not.toContain("secret database details");
+  });
+  it("reads stays only inside verified trip scope", async () => {
+    const deps = dependencies();
+    const request = () => new Request("http://localhost/v1/stays", { headers: { authorization: "Bearer test-token" } });
+    expect((await handleRequest(request(), deps)).status).toBe(200);
+    expect(deps.staysStore.getStays).toHaveBeenCalledWith(verifiedAccess.trip.id);
+    const missing = dependencies();
+    expect((await handleRequest(new Request("http://localhost/v1/stays"), missing)).status).toBe(401);
+    expect(missing.staysStore.getStays).not.toHaveBeenCalled();
+    const invalid = dependencies(vi.fn(async () => null));
+    expect((await handleRequest(request(), invalid)).status).toBe(401);
+    expect(invalid.staysStore.getStays).not.toHaveBeenCalled();
+    deps.staysStore.getStays = vi.fn(async () => { throw new Error("private database detail"); });
+    const failure = await handleRequest(request(), deps);
+    expect(failure.status).toBe(503);
+    expect(await failure.text()).not.toContain("private database detail");
+  });
   it("reports health without exposing configuration", async () => {
     const response = await handleRequest(new Request("http://localhost/health"), dependencies());
 

@@ -1,6 +1,7 @@
 import type { SVGProps } from "react";
 
 const paths = {
+  image: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8.5" cy="9" r="1.5" /><path d="m4 17 5-5 4 4 2-2 5 4" /></>,
   home: <path d="M3 11.5 12 4l9 7.5v8a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
   bed: <path d="M3 20v-9h18v9M3 16h18M6 11V7h5a3 3 0 0 1 3 3v1" />,

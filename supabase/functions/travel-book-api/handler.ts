@@ -8,6 +8,10 @@ import {
   type SaveTravelFact,
   type TripDay,
   type TripHome,
+  type StaysResponse,
+  type StayInput,
+  parseStayInput,
+  parseUpdateStayRequest,
 } from "../../../packages/contracts/src/index.ts";
 
 export interface AccessStore {
@@ -36,6 +40,10 @@ export interface HomeStore {
 }
 
 export interface HandlerDependencies {
+  staysStore: {
+    getStays(tripId: string): Promise<StaysResponse | null>;
+    mutateStay(tripId: string, action: "create" | "update" | "delete", id: string | null, input: StayInput | null, expectedVersion: number, idempotencyKey: string): Promise<StaysResponse>;
+  };
   accessStore: AccessStore;
   homeStore: HomeStore;
   itineraryStore: ItineraryStore;
@@ -134,6 +142,57 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
         : apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers);
     } catch (error) {
       upstreamStatus = safeUpstreamStatus(error);
+      response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if ((request.method === "POST" && url.pathname.endsWith("/v1/stays"))
+    || ((request.method === "PATCH" || request.method === "DELETE") && /\/v1\/stays\/[^/]+$/.test(url.pathname))) {
+    try {
+      const token = bearerToken(request);
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      if (!verified) {
+        response = apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers);
+      } else {
+        const action = request.method === "POST" ? "create" : request.method === "PATCH" ? "update" : "delete";
+        const id = action === "create" ? null : url.pathname.split("/").pop()!;
+        const body: unknown = await request.json().catch(() => null);
+        const parsed = action === "update" ? parseUpdateStayRequest(body) : parseStayInput(body);
+        const version = action === "create" ? 0 : typeof body === "object" && body !== null && "expectedVersion" in body ? body.expectedVersion : null;
+        const metadata = parseMutationMetadata({ expectedVersion: version, idempotencyKey: request.headers.get("idempotency-key") });
+        const validId = id === null || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+        if (!metadata.ok || !validId || (action !== "delete" && !parsed.ok) || (action !== "create" && (!Number.isSafeInteger(version) || Number(version) < 1))) {
+          response = apiError("VALIDATION_FAILED", "住宿保存資料格式不正確。", requestId, 422, headers);
+        } else {
+          const input: StayInput | null = action === "delete" || !parsed.ok ? null : {
+            name: parsed.value.name, city: parsed.value.city, address: parsed.value.address,
+            startDate: parsed.value.startDate, endDate: parsed.value.endDate,
+            checkin: parsed.value.checkin, checkout: parsed.value.checkout, photo: parsed.value.photo,
+          };
+          const result = await dependencies.staysStore.mutateStay(verified.trip.id, action, id, input, metadata.value.expectedVersion, metadata.value.idempotencyKey);
+          response = json(result, action === "create" ? 201 : 200, headers);
+        }
+      }
+    } catch (error) {
+      const code = typeof error === "object" && error !== null && "message" in error
+        && error.message === "STAYS_STORE_UNAVAILABLE" && "code" in error ? error.code : null;
+      response = code === "VERSION_CONFLICT"
+        ? apiError(code, "資料已由其他裝置更新，請重新載入。", requestId, 409, headers)
+        : code === "RESOURCE_NOT_FOUND"
+          ? apiError(code, "找不到指定住宿。", requestId, 404, headers)
+          : code === "VALIDATION_FAILED"
+            ? apiError(code, "住宿保存資料格式不正確。", requestId, 422, headers)
+            : apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if (request.method === "GET" && url.pathname.endsWith("/v1/stays")) {
+    const token = bearerToken(request);
+    try {
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      const stays = verified ? await dependencies.staysStore.getStays(verified.trip.id) : null;
+      response = !verified
+        ? apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers)
+        : stays
+          ? json(stays, 200, headers)
+          : apiError("RESOURCE_NOT_FOUND", "找不到住宿資料。", requestId, 404, headers);
+    } catch {
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
     }
   } else if (request.method === "GET" && url.pathname.endsWith("/v1/home")) {
