@@ -3,10 +3,10 @@ begin;
 set local search_path = public, extensions, pg_catalog;
 select plan(3);
 
-insert into app_private.trips (id, title, start_date, end_date, display_timezone)
+insert into app_private.trips (id, title, start_date, end_date, display_timezone, traveler_count)
 values
-  ('ea000000-0000-4000-8000-000000000001', 'Expense test A', '2027-02-05', '2027-02-15', 'Asia/Taipei'),
-  ('ea000000-0000-4000-8000-000000000002', 'Expense test B', '2027-02-05', '2027-02-15', 'Asia/Taipei');
+  ('ea000000-0000-4000-8000-000000000001', 'Expense test A', '2027-02-05', '2027-02-15', 'Asia/Taipei', 4),
+  ('ea000000-0000-4000-8000-000000000002', 'Expense test B', '2027-02-05', '2027-02-15', 'Asia/Taipei', 4);
 
 insert into app_private.exchange_rate_snapshots
   (id, base_currency, rate, source, source_date, formula_version)
