@@ -26,6 +26,7 @@ const tripHome = {
 
 function dependencies(verify = vi.fn(async () => verifiedAccess)): HandlerDependencies {
   return {
+    expensesStore: { getExpenses: vi.fn(async () => ({ schemaVersion: 1, expenses: [], totalsMinor: { TWD: "0", EUR: "0", HUF: "0" }, rates: [] })) },
     staysStore: {
       getStays: vi.fn(async () => ({ schemaVersion: 1 as const, stays: [] })),
       mutateStay: vi.fn(async () => ({ schemaVersion: 1 as const, stays: [] })),
@@ -425,5 +426,42 @@ describe("travel-book-api handler", () => {
 
     expect(response.status).toBe(404);
     expect(parseApiError(body)).toMatchObject({ ok: true, value: { error: { code: "RESOURCE_NOT_FOUND" } } });
+  });
+});
+
+describe("GET /v1/expenses", () => {
+  it("rejects missing and revoked tokens before reading expenses", async () => {
+    const deps = dependencies();
+    deps.accessStore.verify = vi.fn(async () => null);
+    for (const headers of [undefined, { authorization: "Bearer revoked-fixture" }]) {
+      const response = await handleRequest(new Request("https://test.invalid/v1/expenses", { headers }), deps);
+      expect(response.status).toBe(401);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.json()).toMatchObject({ error: { code: "ACCESS_DENIED" } });
+    }
+    expect(deps.expensesStore.getExpenses).not.toHaveBeenCalled();
+  });
+
+  it("scopes reads to each verified token's trip and ignores query trip IDs", async () => {
+    const deps = dependencies();
+    const first = verifiedAccess.trip.id;
+    const second = "22222222-2222-4222-8222-222222222222";
+    deps.accessStore.verify = vi.fn(async (token) => ({
+      ...verifiedAccess, trip: { ...verifiedAccess.trip, id: token === "fixture-a" ? first : second },
+    }));
+    deps.expensesStore.getExpenses = vi.fn(async (tripId) => ({
+      schemaVersion: 1, expenses: [], totalsMinor: { TWD: tripId === first ? "100" : "200", EUR: "0", HUF: "0" }, rates: [],
+    }));
+
+    for (const [token, otherId, total] of [["fixture-a", second, "100"], ["fixture-b", first, "200"]]) {
+      const response = await handleRequest(new Request(`https://test.invalid/v1/expenses?tripId=${otherId}`, {
+        headers: { authorization: `Bearer ${token}` },
+      }), deps);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.json()).toMatchObject({ totalsMinor: { TWD: total } });
+    }
+    expect(deps.expensesStore.getExpenses).toHaveBeenNthCalledWith(1, first);
+    expect(deps.expensesStore.getExpenses).toHaveBeenNthCalledWith(2, second);
   });
 });

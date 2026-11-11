@@ -259,3 +259,18 @@ button:disabled {
 .stay-photo-remove { display: inline-flex; align-items: center; justify-content: center; margin-left: 0.5rem; padding: 0.55rem 0.8rem; }
 
 .stay-photo-select { background: var(--paper); border: 1px solid var(--line); }
+
+.expense-row-readonly {
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, auto);
+  cursor: default;
+  overflow-wrap: anywhere;
+}
+
+.expense-row-readonly:active {
+  background: var(--card);
+  transform: none;
+}
+
+.currency-card small {
+  overflow-wrap: anywhere;
+}

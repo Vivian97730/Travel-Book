@@ -5,6 +5,7 @@ import {
   parseSaveTripDayRequest,
   type AccessVerifyResponse,
   type ApiErrorCode,
+  type ExpensesResponse,
   type SaveTripDayItem,
   type SaveTravelFact,
   type TripDay,
@@ -41,6 +42,7 @@ export interface HomeStore {
 }
 
 export interface HandlerDependencies {
+  expensesStore: { getExpenses(tripId: string): Promise<ExpensesResponse | null> };
   stayPhotosStore?: StayPhotosStore;
   staysStore: {
     getStays(tripId: string): Promise<StaysResponse | null>;
@@ -214,6 +216,22 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
           : code === "VALIDATION_FAILED"
             ? apiError(code, "住宿保存資料格式不正確。", requestId, 422, headers)
             : apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if (request.method === "GET" && url.pathname.endsWith("/v1/expenses")) {
+    const token = bearerToken(request);
+    const privateHeaders = { ...headers, "cache-control": "no-store" };
+    try {
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      if (!verified) {
+        response = apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, privateHeaders);
+      } else {
+        const expenses = await dependencies.expensesStore.getExpenses(verified.trip.id);
+        response = expenses
+          ? json(expenses, 200, privateHeaders)
+          : apiError("RESOURCE_NOT_FOUND", "找不到旅程支出資料。", requestId, 404, privateHeaders);
+      }
+    } catch {
+      response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, privateHeaders);
     }
   } else if (request.method === "GET" && url.pathname.endsWith("/v1/stays")) {
     const token = bearerToken(request);
