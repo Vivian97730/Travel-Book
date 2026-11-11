@@ -10,10 +10,13 @@ import { ItineraryPage } from "./features/itinerary/ItineraryPage";
 import {
   deleteHomeSnapshotForToken,
   getHomeSnapshotForToken,
+  hashAccessToken,
 } from "./features/offline/homeSnapshotRepository";
 import { IndexedDbHomeSnapshotRepository } from "./features/offline/indexedDbHomeSnapshotRepository";
 import { ApiClient, ApiClientError } from "./shared/api/apiClient";
 import { ApiStaysRepository } from "./features/stays/apiStaysRepository";
+import { IndexedDbStaysSnapshots } from "./features/stays/staysSnapshot";
+import { SnapshotStaysRepository } from "./features/stays/snapshotStaysRepository";
 import { StaysPage } from "./features/stays/StaysPage";
 import type { AccessVerifyResponse } from "@travel-book/contracts";
 
@@ -50,9 +53,15 @@ export default function App() {
   const [route, setRoute] = useState<Route>(routeFromCurrentHash);
   const [online, setOnline] = useState(navigator.onLine);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  const staysSnapshots = useMemo(() => new IndexedDbStaysSnapshots(), []);
   const staysRepository = useMemo(
-    () => apiBaseUrl && accessToken ? new ApiStaysRepository(apiBaseUrl, accessToken) : null,
-    [apiBaseUrl, accessToken],
+    () => apiBaseUrl && accessToken && verifiedAccess
+      ? new SnapshotStaysRepository(
+          new ApiStaysRepository(apiBaseUrl, accessToken), staysSnapshots, accessToken, verifiedAccess,
+          () => navigator.onLine,
+        )
+      : null,
+    [apiBaseUrl, accessToken, staysSnapshots, verifiedAccess],
   );
   const homeSnapshots = useMemo(() => new IndexedDbHomeSnapshotRepository(), []);
   const homeRepository = useMemo(
@@ -84,10 +93,12 @@ export default function App() {
     }
     if (!online) {
       setAccessState("checking");
-      getHomeSnapshotForToken(homeSnapshots, accessToken)
-        .then((snapshot) => {
+      Promise.all([
+        getHomeSnapshotForToken(homeSnapshots, accessToken).catch(() => null),
+        hashAccessToken(accessToken).then((hash) => staysSnapshots.get(hash)).catch(() => null),
+      ]).then(([home, stays]) => {
           if (!active) return;
-          setVerifiedAccess(snapshot?.access ?? null);
+          setVerifiedAccess(home?.access ?? stays?.access ?? null);
           setAccessState("offline");
         })
         .catch(() => {
@@ -107,7 +118,10 @@ export default function App() {
     }).catch(async (error: unknown) => {
       if (!active) return;
       if (error instanceof ApiClientError && error.code === "ACCESS_DENIED") {
-        await deleteHomeSnapshotForToken(homeSnapshots, accessToken).catch(() => undefined);
+        await Promise.allSettled([
+          deleteHomeSnapshotForToken(homeSnapshots, accessToken),
+          hashAccessToken(accessToken).then((hash) => staysSnapshots.delete(hash)),
+        ]);
         if (!active) return;
         accessStore.clear();
         setAccessToken(null);
@@ -118,7 +132,7 @@ export default function App() {
       }
     });
     return () => { active = false; };
-  }, [accessStore, accessToken, apiBaseUrl, homeSnapshots, online]);
+  }, [accessStore, accessToken, apiBaseUrl, homeSnapshots, staysSnapshots, online]);
 
   useEffect(() => {
     const updateRoute = () => {
@@ -158,7 +172,7 @@ export default function App() {
 
   return <div className="app-shell">
     <header className="topbar"><button className="brand brand-button" type="button" onClick={() => navigate("itinerary")}><span className="brand-mark">旅</span><span>Travel Book</span></button><div className="topbar-side"><span className="sync-label">{online ? "首頁功能開發版" : "離線唯讀"}</span><span className="avatar" aria-label="4 位同行者">4 人</span></div></header>
-    {route === "home" ? <HomePage repository={homeRepository} online={online} /> : route === "itinerary" ? <ItineraryPage repository={itineraryRepository} trip={verifiedAccess.trip} online={online} /> : route === "stays" && staysRepository ? <StaysPage repository={staysRepository} online={online} startDate={verifiedAccess.trip.startDate} endDate={verifiedAccess.trip.endDate} /> : <ComingSoon route={route} onHome={() => navigate("home")} />}
+    {route === "home" ? <HomePage repository={homeRepository} online={online} /> : route === "itinerary" ? <ItineraryPage repository={itineraryRepository} staysRepository={staysRepository} trip={verifiedAccess.trip} online={online} /> : route === "stays" && staysRepository ? <StaysPage repository={staysRepository} online={online} startDate={verifiedAccess.trip.startDate} endDate={verifiedAccess.trip.endDate} /> : <ComingSoon route={route} onHome={() => navigate("home")} />}
     <nav className="bottom-nav" aria-label="主要導覽">
       {routeItems.map(([value, icon, label]) => <button className="nav-button" type="button" key={value} onClick={() => navigate(value)} aria-current={route === value ? "page" : undefined}><Icon name={icon} size={20} /><span>{label}</span></button>)}
     </nav>

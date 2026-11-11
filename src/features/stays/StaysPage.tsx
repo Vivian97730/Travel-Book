@@ -28,9 +28,8 @@ export function StaysPage({ repository, online, startDate = "2027-02-05", endDat
   useEffect(() => {
     let active = true;
     setError(null);
-    if (!online) return () => { active = false; };
     repository.getStays().then((data) => { if (active) setStays(data); }).catch((error: unknown) => {
-      if (active) setError(typeof error === "object" && error !== null && "code" in error && error.code === "ACCESS_DENIED"
+      if (active && online) setError(typeof error === "object" && error !== null && "code" in error && error.code === "ACCESS_DENIED"
         ? "私人連結已失效，請重新開啟家人分享的連結。" : "目前無法讀取住宿，請稍後重試。");
     });
     return () => { active = false; };
@@ -58,7 +57,7 @@ export function StaysPage({ repository, online, startDate = "2027-02-05", endDat
     setEditor({ stay, key: editor.key + 1 });
   }
   return <main id="main" className="screen"><header className="page-heading"><div><p className="eyebrow">Stays</p><h1>住宿</h1></div><button className="primary-button" type="button" aria-label="新增住宿" disabled={!online || stays === null || !!error} onClick={() => setEditor({ stay: null, key: 0 })}><Icon name="plus" size={18} /><span>新增住宿</span></button></header>
-    {!online && <p role="status">目前離線，住宿為唯讀。{stays === null ? "連線後即可讀取住宿資料。" : ""}</p>}
+    {!online && <p role="status">目前離線，住宿為唯讀。{stays === null ? "連線後即可讀取住宿資料。" : repository.lastSyncedAt ? `最後同步：${new Date(repository.lastSyncedAt).toLocaleString("zh-TW")}` : ""}</p>}
     {error ? <section className="card section-card"><p role="alert">{error}</p><button className="secondary-button" type="button" disabled={!online} onClick={() => setRetry((value) => value + 1)}>重新載入</button></section>
       : stays === null ? online && <p className="loading-state" role="status">正在讀取住宿…</p>
       : <StaysContent stays={stays} repository={repository} online={online} onEdit={online ? (stay) => setEditor({ stay, key: 0 }) : undefined} />}

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
-import type { AccessTripSummary, ItineraryCategory, ItineraryItem, SaveTripDayItem, TripDay } from "@travel-book/contracts";
+import type { AccessTripSummary, ItineraryCategory, ItineraryItem, SaveTripDayItem, Stay, TripDay } from "@travel-book/contracts";
 import { Icon, type IconName } from "../../components/Icon";
 import { buildDateWindow, chooseDefaultDate } from "./dateWindow";
 import { ItineraryMap, type ItineraryMapLocation } from "./ItineraryMap";
+import type { StaysRepository } from "../stays/staysRepository";
 import type { ItineraryRepository } from "./itineraryRepository";
 
 const categoryIcons: Record<ItineraryCategory, IconName> = {
@@ -57,12 +58,13 @@ function weekdayFor(date: string): string {
   return ["日", "一", "二", "三", "四", "五", "六"][new Date(`${date}T00:00:00Z`).getUTCDay()];
 }
 
-export function ItineraryPage({ repository, trip, online = true }: { repository: ItineraryRepository; trip: AccessTripSummary; online?: boolean }) {
+export function ItineraryPage({ repository, trip, staysRepository, online = true }: { repository: ItineraryRepository; trip: AccessTripSummary; staysRepository?: StaysRepository | null; online?: boolean }) {
   const defaultDate = useMemo(
     () => chooseDefaultDate(dateInTimezone(trip.displayTimezone), trip.startDate, trip.endDate),
     [trip.displayTimezone, trip.endDate, trip.startDate],
   );
   const [selectedDate, setSelectedDate] = useState(defaultDate);
+  const [stays, setStays] = useState<Stay[]>([]);
   const [day, setDay] = useState<TripDay | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +100,17 @@ export function ItineraryPage({ repository, trip, online = true }: { repository:
     });
     return () => { active = false; };
   }, [repository, selectedDate]);
+
+  useEffect(() => {
+    if (!staysRepository) return;
+    let active = true;
+    staysRepository.getStays().then((result) => {
+      if (active) setStays(result);
+    }).catch(() => {
+      if (active) setStays([]);
+    });
+    return () => { active = false; };
+  }, [staysRepository, online]);
 
   if (loading && !day) return <main id="main" className="screen"><p className="loading-state">正在載入每日行程⋯</p></main>;
   if (!day || error) return <main id="main" className="screen"><section className="card section-card empty-development"><h1>每日行程</h1><p role="alert">{error}</p></section></main>;
@@ -188,6 +201,7 @@ export function ItineraryPage({ repository, trip, online = true }: { repository:
   return <>
     <ItineraryDayView
       day={visibleDay}
+      stays={stays}
       dates={dates}
       selectedDate={selectedDate}
       online={online}
@@ -226,6 +240,7 @@ export function ItinerarySaveRecovery({ failure, busy, onRecover }: {
 
 export function ItineraryDayView({
   day,
+  stays = [],
   dates,
   selectedDate,
   online = true,
@@ -240,6 +255,7 @@ export function ItineraryDayView({
   onReorderItem = () => undefined,
 }: {
   day: TripDay;
+  stays?: readonly Stay[];
   dates: readonly string[];
   selectedDate: string;
   online?: boolean;
@@ -254,6 +270,7 @@ export function ItineraryDayView({
   onReorderItem?(sourceId: string, targetId: string): void;
 }) {
   const canEdit = editing && online;
+  const dailyStays = stays.filter((stay) => stay.startDate <= day.date && day.date < stay.endDate);
   const mappedItems: ItineraryMapLocation[] = day.items.flatMap((item, index) => {
     if (item.place === null || item.place.latitude === null || item.place.longitude === null) return [];
     return [{
@@ -278,11 +295,23 @@ export function ItineraryDayView({
       <section className="card section-card" aria-labelledby="city-title">
         <div className="city-head"><div><p className="eyebrow">{day.date}・週{day.weekday}</p><h2 id="city-title">{day.city}</h2><p>{editing ? (online ? "編輯模式：可新增、修改、刪除或拖曳排序。" : "離線唯讀：草稿已保留，連線後可繼續編輯。") : day.summary}</p></div><button className="icon-button" type="button" onClick={onToggleEditing} disabled={saving || !online} aria-label={editing ? "完成行程編輯" : "編輯城市與行程"} aria-pressed={editing}><Icon name={editing ? "check" : "edit"} size={19} /></button></div>
         <div className="schedule-list" style={{ marginTop: "1.25rem" }}>
-          {day.items.length ? day.items.map((item, index) => <article className={`schedule-card ${canEdit ? "is-editing" : ""}`} data-itinerary-card={item.id} key={item.id}>
+          {day.items.map((item, index) => <article className={`schedule-card ${canEdit ? "is-editing" : ""}`} data-itinerary-card={item.id} key={item.id}>
             <span className={`timeline-icon category-${item.category}`}><Icon name={categoryIcons[item.category]} size={21} /></span>
             <div className="timeline-copy"><strong>{item.title}</strong><p>{item.note}</p>{item.place && <small className="itinerary-place-name">{item.place.name}</small>}<a className="navigate-link" href={googleMapsSearchUrl(item.title)} target="_blank" rel="noreferrer"><Icon name="location" size={14} />導航</a></div>
             {canEdit ? <div className="schedule-controls"><DragHandle item={item} previousItem={day.items[index - 1]} nextItem={day.items[index + 1]} onReorder={onReorderItem} /><button className="icon-button" type="button" onClick={() => onEditItem(item)} aria-label={`修改${item.title}`}><Icon name="edit" size={17} /></button><button className="icon-button danger-icon" type="button" onClick={() => onDeleteItem(item.id)} aria-label={`刪除${item.title}`}><Icon name="trash" size={17} /></button></div> : <button className="icon-button" type="button" onClick={() => onViewItem(item)} aria-label={`檢視${item.title}`}><Icon name="chevron" size={18} /></button>}
-          </article>) : <p className="empty-state">這一天尚未安排細項。</p>}
+          </article>)}
+          {dailyStays.map((stay) => <article className="schedule-card" key={stay.id}>
+            <span className="timeline-icon category-stay"><Icon name="bed" size={21} /></span>
+            <div className="timeline-copy">
+              <strong>{stay.name}</strong>
+              <p>{stay.address}</p>
+              <small className="itinerary-place-name">
+                {day.date === stay.startDate ? `Check-in ${stay.checkin} 後` : "住宿"}
+              </small>
+              <a className="navigate-link" href={googleMapsSearchUrl(stay.name)} target="_blank" rel="noreferrer"><Icon name="location" size={14} />導航</a>
+            </div>
+          </article>)}
+          {!day.items.length && !dailyStays.length && <p className="empty-state">這一天尚未安排細項。</p>}
         </div>
         {canEdit && <button className="secondary-button add-itinerary-button" type="button" onClick={onAddItem}><Icon name="plus" size={17} />新增行程</button>}
       </section>
