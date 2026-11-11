@@ -21,6 +21,15 @@ describe("Expenses Repository", () => {
     });
   });
 
+  it("calls native-style fetch without binding the repository as its receiver", async () => {
+    const fetcher = async function (this: unknown) {
+      if (this !== undefined) throw new TypeError("Illegal invocation");
+      return Response.json(payload);
+    };
+    const repository = new ApiExpensesRepository("https://test.invalid", "fixture", fetcher);
+    await expect(repository.getExpenses()).resolves.toEqual(payload);
+  });
+
   it("preserves access errors and rejects invalid response data", async () => {
     const denied = new ApiExpensesRepository("https://test.invalid", "fixture", async () => Response.json({
       error: { code: "ACCESS_DENIED", message: "Denied", requestId: "request", details: {} },

@@ -33,7 +33,8 @@ export class ApiExpensesRepository implements ExpensesRepository {
     const requestId = crypto.randomUUID();
     let response: Response;
     try {
-      response = await this.fetcher(`${this.baseUrl.replace(/\/$/, "")}${path}`, {
+      const fetcher = this.fetcher;
+      response = await fetcher(`${this.baseUrl.replace(/\/$/, "")}${path}`, {
         ...init,
         headers: { ...init?.headers, authorization: `Bearer ${this.token}`, "x-request-id": requestId },
         cache: "no-store",
