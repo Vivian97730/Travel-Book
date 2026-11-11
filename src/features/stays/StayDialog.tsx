@@ -33,10 +33,18 @@ export function StayDialog({ stay, online, startDate, endDate, onClose, onSave, 
   }, [selected]);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<ReturnType<typeof stayFailureMessage> | null>(null);
-  const [value, setValue] = useState<StayInput>(() => stay ? {
-    name: stay.name, city: stay.city, address: stay.address,
-    startDate: stay.startDate, endDate: stay.endDate, checkin: stay.checkin, checkout: stay.checkout, photo: stay.photo,
-  } : { name: "", city: "", address: "", startDate, endDate: "", checkin: "15:00", checkout: "11:00", photo: null });
+  const [value, setValue] = useState<StayInput>(() => {
+    if (stay) return {
+      name: stay.name, city: stay.city, address: stay.address,
+      startDate: stay.startDate, endDate: stay.endDate, checkin: stay.checkin, checkout: stay.checkout, photo: stay.photo,
+    };
+    const nextDay = new Date(`${startDate}T00:00:00Z`);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    return {
+      name: "", city: "", address: "", startDate, endDate: startDate < endDate ? nextDay.toISOString().slice(0, 10) : "",
+      checkin: "15:00", checkout: "11:00", photo: null,
+    };
+  });
   useEffect(() => {
     const element = dialog.current;
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
