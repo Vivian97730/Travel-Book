@@ -59,6 +59,28 @@ function dependencies(verify = vi.fn(async () => verifiedAccess)): HandlerDepend
 }
 
 describe("travel-book-api handler", () => {
+  it("authenticates photo uploads and isolates photo reads to the verified trip", async () => {
+    const deps = dependencies();
+    deps.stayPhotosStore = { upload: vi.fn(async () => undefined), download: vi.fn(async () => new Response(new Uint8Array([255,216,255,217]))) };
+    const url = "https://example.test/v1/stay-photos";
+    const unauthorized = await handleRequest(new Request(url, {method:"POST"}), deps);
+    expect(unauthorized.status).toBe(401);
+    expect(deps.stayPhotosStore.upload).not.toHaveBeenCalled();
+    const uploaded = await handleRequest(new Request(url, {method:"POST", headers:{authorization:"Bearer test-token", "content-type":"image/jpeg"},body:new Uint8Array([255,216,255,217])}), deps);
+    expect(uploaded.status).toBe(201);
+    const {id} = await uploaded.json();
+    const result = await handleRequest(new Request(`${url}/${id}`,{headers:{authorization:"Bearer test-token"}}),deps);
+    expect(result.status).toBe(200);
+    expect(result.headers.get("cache-control")).toBe("no-store");
+    expect(deps.stayPhotosStore.download).toHaveBeenCalledWith(verifiedAccess.trip.id,id);
+    const invalid = await handleRequest(new Request(`${url}/invalid`,{headers:{authorization:"Bearer test-token"}}),deps);
+    expect(invalid.status).toBe(404);
+    const badUpload = await handleRequest(new Request(url,{method:"POST",headers:{authorization:"Bearer test-token","content-type":"image/svg+xml"},body:"<svg/>"}),deps);
+    expect(badUpload.status).toBe(422);
+    deps.stayPhotosStore.download = vi.fn(async () => new Response(null,{status:404}));
+    expect((await handleRequest(new Request(`${url}/${id}`,{headers:{authorization:"Bearer test-token"}}),deps)).status).toBe(404);
+  });
+
   it("authenticates and validates stay mutations before calling the trip-scoped store", async () => {
     const input = { name: "測試住宿", city: "維也納", address: "測試地址", startDate: "2027-02-05", endDate: "2027-02-08", checkin: "15:00", checkout: "11:00", photo: null };
     const headers = { authorization: "Bearer test-token", "content-type": "application/json", "idempotency-key": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };

@@ -253,3 +253,9 @@ button:disabled {
     bottom: 1rem;
   }
 }
+
+.stay-photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.stay-photo-finder button { margin-top: 0.35rem; }
+.stay-photo-remove { display: inline-flex; align-items: center; justify-content: center; margin-left: 0.5rem; padding: 0.55rem 0.8rem; }
+
+.stay-photo-select { background: var(--paper); border: 1px solid var(--line); }

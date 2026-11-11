@@ -21,6 +21,8 @@ describe("stays contract", () => {
   });
   it("validates dates, times and photo provenance", () => {
     expect(parseStayInput(input).ok).toBe(true);
+    expect(parseStayInput({ ...input, photo: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } }).ok).toBe(true);
+    expect(parseStayInput({ ...input, photo: { id: "../other-trip/photo" } }).ok).toBe(false);
     for (const invalid of [
       { endDate: input.startDate }, { startDate: "2027-02-30" },
       { checkin: "24:00" }, { name: "" }, { photo: { photoUri: "https://example.com" } },

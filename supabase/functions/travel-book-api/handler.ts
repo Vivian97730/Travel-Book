@@ -1,3 +1,4 @@
+import { readStayPhoto, stayPhotoIdPattern, type StayPhotosStore } from "./stayPhotos.ts";
 import {
   parseMutationMetadata,
   parseSaveTravelFactsRequest,
@@ -40,6 +41,7 @@ export interface HomeStore {
 }
 
 export interface HandlerDependencies {
+  stayPhotosStore?: StayPhotosStore;
   staysStore: {
     getStays(tripId: string): Promise<StaysResponse | null>;
     mutateStay(tripId: string, action: "create" | "update" | "delete", id: string | null, input: StayInput | null, expectedVersion: number, idempotencyKey: string): Promise<StaysResponse>;
@@ -143,6 +145,37 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
     } catch (error) {
       upstreamStatus = safeUpstreamStatus(error);
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if ((request.method === "POST" && url.pathname.endsWith("/v1/stay-photos"))
+    || (request.method === "GET" && /\/v1\/stay-photos\/[^/]+$/.test(url.pathname))) {
+    try {
+      const token = bearerToken(request);
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      if (!verified) {
+        response = apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers);
+      } else if (!dependencies.stayPhotosStore) {
+        response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "照片服務暫時無法使用。", requestId, 503, headers);
+      } else if (request.method === "POST") {
+        const bytes = await readStayPhoto(request);
+        if (!bytes) response = apiError("VALIDATION_FAILED", "請使用 2 MB 以內的 JPEG 圖片。", requestId, 422, headers);
+        else {
+          const id = crypto.randomUUID();
+          await dependencies.stayPhotosStore.upload(verified.trip.id, id, bytes);
+          response = json({ id }, 201, { ...headers, "cache-control": "no-store" });
+        }
+      } else {
+        const id = url.pathname.split("/").pop()!;
+        if (!stayPhotoIdPattern.test(id)) response = apiError("RESOURCE_NOT_FOUND", "找不到照片。", requestId, 404, headers);
+        else {
+          const photo = await dependencies.stayPhotosStore.download(verified.trip.id, id);
+          response = photo.ok
+            ? new Response(photo.body, { status: 200, headers: { ...headers, "content-type": "image/jpeg",
+              "cache-control": "no-store", "x-content-type-options": "nosniff" } })
+            : apiError("RESOURCE_NOT_FOUND", "找不到照片。", requestId, 404, headers);
+        }
+      }
+    } catch {
+      response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "照片服務暫時無法使用。", requestId, 503, headers);
     }
   } else if ((request.method === "POST" && url.pathname.endsWith("/v1/stays"))
     || ((request.method === "PATCH" || request.method === "DELETE") && /\/v1\/stays\/[^/]+$/.test(url.pathname))) {

@@ -4,6 +4,12 @@ export interface StayPhoto {
   id: string;
 }
 
+export function isStayPhoto(photo: unknown): photo is StayPhoto {
+  return isRecord(photo) && typeof photo.id === "string"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(photo.id)
+    && Object.keys(photo).length === 1;
+}
+
 export interface StayInput {
   name: string;
   city: string;
@@ -46,9 +52,7 @@ export function parseStayInput(input: unknown): ParseResult<StayInput> {
   }
   if (input.photo !== null) {
     const photo = input.photo;
-    if (!isRecord(photo) || typeof photo.id !== "string"
-      || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(photo.id)
-      || Object.keys(photo).some((key) => key !== "id")) {
+    if (!isStayPhoto(photo)) {
       issues.push({ path: "photo", message: "照片來源格式不正確。" });
     }
   }

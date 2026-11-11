@@ -1,4 +1,4 @@
-import { parseApiError, parseStayInput, parseStaysResponse, type Stay, type StayInput } from "@travel-book/contracts";
+import { isStayPhoto, parseApiError, parseStayInput, parseStaysResponse, type Stay, type StayInput } from "@travel-book/contracts";
 import { ApiClientError } from "../../shared/api/apiClient";
 import type { StaysRepository } from "./staysRepository";
 
@@ -7,6 +7,25 @@ type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 export class ApiStaysRepository implements StaysRepository {
   private readonly pendingKeys = new Map<string, string>();
   constructor(private readonly baseUrl: string, private readonly token: string, private readonly fetcher: Fetcher = fetch) {}
+
+  async uploadPhoto(file: Blob): Promise<{ id: string }> {
+    const response = await this.fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stay-photos`, {
+      method: "POST", headers: { authorization: `Bearer ${this.token}`, "content-type": "image/jpeg" }, body: file,
+    });
+    const body: unknown = await response.json().catch(() => null);
+    if (!response.ok || !isStayPhoto(body)) {
+      throw new Error("照片上傳失敗，請稍後重試。");
+    }
+    return body;
+  }
+
+  async readPhoto(id: string): Promise<Blob> {
+    const response = await this.fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stay-photos/${encodeURIComponent(id)}`, {
+      headers: { authorization: `Bearer ${this.token}` }, cache: "no-store",
+    });
+    if (!response.ok) throw new Error("照片讀取失敗。");
+    return response.blob();
+  }
 
   async createStay(input: StayInput): Promise<Stay> {
     const stays = await this.mutate("POST", "", input, 0);
