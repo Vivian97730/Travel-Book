@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { expenseCurrencies, type Expense, type ExpenseCurrency, type ExpensesResponse } from "@travel-book/contracts";
 import { Icon, type IconName } from "../../components/Icon";
 import { ApiClientError } from "../../shared/api/apiClient";
+import { ExpenseDialog, readExpenseDraft } from "./ExpenseDialog";
 import type { ExpensesRepository } from "./expensesRepository";
 
 const currencyNames = { TWD: "台幣", EUR: "歐元", HUF: "匈牙利幣" };
@@ -33,7 +34,7 @@ function groupExpenses(expenses: Expense[]) {
   return [...groups].sort(([a], [b]) => b.localeCompare(a));
 }
 
-function ExpenseGroup({ date, expenses }: { date: string; expenses: Expense[] }) {
+function ExpenseGroup({ date, expenses, onEdit }: { date: string; expenses: Expense[]; onEdit(expense: Expense): void }) {
   const [expanded, setExpanded] = useState(true);
   const hasReference = expenses.some((expense) => expense.referenceTwdMinor !== null);
   const subtotal = expenses.reduce((sum, expense) => sum + BigInt(expense.referenceTwdMinor ?? 0), 0n);
@@ -49,14 +50,15 @@ function ExpenseGroup({ date, expenses }: { date: string; expenses: Expense[] })
       <div className="expense-group-items">
         {expenses.map((expense) => {
           const [icon, color] = categoryStyle[expense.category];
-          return <div className="expense-row expense-row-readonly" key={expense.id}>
+          return <button className="expense-row" type="button" key={expense.id} aria-label={`編輯${expense.title}`} onClick={() => onEdit(expense)}>
             <span className={`expense-icon category-${color}`}><Icon name={icon} size={18} /></span>
             <span className="expense-copy"><span>{expense.category}</span><strong>{expense.title}</strong></span>
             <span className="expense-amount">
               <strong>{money(expense.currency, BigInt(expense.amountMinor))}</strong>
               <span>{expense.referenceTwdMinor === null ? "約 TWD －" : `約 ${money("TWD", BigInt(expense.referenceTwdMinor))}`}</span>
             </span>
-          </div>;
+            <span className="expense-edit-cue" aria-hidden="true"><Icon name="chevron" size={17} /></span>
+          </button>;
         })}
       </div>
     </div>
@@ -68,25 +70,41 @@ type ExpenseState =
   | { kind: "error"; message: string }
   | { kind: "ready"; data: ExpensesResponse };
 
-export function ExpensesPage({ repository, online }: { repository: ExpensesRepository; online: boolean }) {
+export function ExpensesPage({ repository, online, startDate, endDate }: { repository: ExpensesRepository; online: boolean; startDate: string; endDate: string }) {
   const [state, setState] = useState<ExpenseState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
+  const [editing, setEditing] = useState<{ expense: Expense | null } | null>(() => {
+    const draft = readExpenseDraft(repository);
+    return draft ? { expense: draft.expense } : null;
+  });
+  const [notice, setNotice] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = setTimeout(() => setNotice(""), 3000);
+    return () => clearTimeout(timeout);
+  }, [notice]);
 
   useEffect(() => {
     if (!online) return;
     let active = true;
+    setRefreshing(true);
     repository.getExpenses().then((data) => {
       if (active) setState({ kind: "ready", data });
     }).catch((error: unknown) => {
       if (!active) return;
       setState({ kind: "error", message: error instanceof ApiClientError && error.code === "ACCESS_DENIED"
         ? "私人連結已失效。請向家人取得新的私人連結。" : "目前無法讀取支出資料。" });
-    });
+    }).finally(() => { if (active) setRefreshing(false); });
     return () => { active = false; };
   }, [attempt, online, repository]);
 
   return <main id="main" className="screen">
-    <header className="page-heading"><div><p className="eyebrow">Expenses</p><h1>記帳</h1></div></header>
+    <header className="page-heading"><div><p className="eyebrow">Expenses</p><h1>記帳</h1></div>
+      {online && state.kind === "ready" && <button className="primary-button" type="button" aria-label="新增支出"
+        onClick={() => setEditing({ expense: null })}><Icon name="plus" size={18} /><span>新增支出</span></button>}</header>
+    {notice && <div className="toast-region" role="status"><div className="toast">{notice}</div></div>}
     {!online ? <section className="card section-card" role="status">離線時無法載入支出，請連線後再試。</section>
       : state.kind === "loading" ? <p className="loading-state" role="status">正在讀取支出…</p>
       : state.kind === "error" ? <section className="card section-card">
@@ -96,11 +114,16 @@ export function ExpensesPage({ repository, online }: { repository: ExpensesRepos
           setAttempt((value) => value + 1);
         }}>重新載入</button>
       </section>
-      : <ExpenseOverview data={state.data} />}
+      : <ExpenseOverview data={state.data} onEdit={(expense) => setEditing({ expense })} />}
+    {editing && <ExpenseDialog expense={editing.expense} repository={repository} online={online && !refreshing}
+      startDate={startDate} endDate={endDate}
+      onClose={() => { setEditing(null); if (online) setAttempt((value) => value + 1); }}
+      onData={(data) => setState({ kind: "ready", data })}
+      onSaved={(data, message) => { setState({ kind: "ready", data }); setEditing(null); setNotice(message); }} />}
   </main>;
 }
 
-function ExpenseOverview({ data }: { data: ExpensesResponse }) {
+function ExpenseOverview({ data, onEdit }: { data: ExpensesResponse; onEdit(expense: Expense): void }) {
   const rates = new Map(data.rates.map((rate) => [rate.baseCurrency, rate]));
   return <>
     <section className="card section-card" aria-labelledby="currency-title">
@@ -123,7 +146,7 @@ function ExpenseOverview({ data }: { data: ExpensesResponse }) {
       <div className="section-head"><div><h2 id="expense-title">支出明細</h2><p>{data.expenses.length} 筆紀錄・依日期整理</p></div></div>
       <div className="expense-list">
         {data.expenses.length ? groupExpenses(data.expenses).map(([date, expenses]) =>
-          <ExpenseGroup key={date} date={date} expenses={expenses} />) : <p className="empty-state">還沒有支出。</p>}
+          <ExpenseGroup key={date} date={date} expenses={expenses} onEdit={onEdit} />) : <p className="empty-state">還沒有支出。</p>}
       </div>
     </section>
   </>;

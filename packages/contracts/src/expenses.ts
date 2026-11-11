@@ -3,6 +3,7 @@ import { isRecord, type ParseResult, type ValidationIssue } from "./validation.t
 export const expenseCurrencies = ["TWD", "EUR", "HUF"] as const;
 export const expenseCategories = ["食物", "交通", "景點", "逛街", "超市", "機票"] as const;
 export type ExpenseCurrency = typeof expenseCurrencies[number];
+export type ForeignExpenseCurrency = Exclude<ExpenseCurrency, "TWD">;
 export type ExpenseCategory = typeof expenseCategories[number];
 
 export interface ExpenseInput {
@@ -17,12 +18,13 @@ export interface Expense extends ExpenseInput {
   id: string;
   version: number;
   rateSnapshotId: string | null;
+  snapshotRate?: string | null;
   referenceTwdMinor: number | null;
 }
 
 export interface ExchangeRateSnapshot {
   id: string;
-  baseCurrency: Exclude<ExpenseCurrency, "TWD">;
+  baseCurrency: ForeignExpenseCurrency;
   quoteCurrency: "TWD";
   rate: string;
   source: string;
@@ -89,12 +91,14 @@ function isExpense(value: unknown): value is Expense {
     || typeof value.version !== "number" || !Number.isSafeInteger(value.version) || value.version < 1) return false;
 
   const { referenceTwdMinor: reference, rateSnapshotId: snapshot } = value;
+  if (value.snapshotRate !== undefined && (snapshot === null ? value.snapshotRate !== null
+    : typeof value.snapshotRate !== "string" || !/^\d+(?:\.\d+)?$/.test(value.snapshotRate) || !/[1-9]/.test(value.snapshotRate))) return false;
   if (value.currency === "TWD") return snapshot === null && reference === value.amountMinor;
   return snapshot === null ? reference === null : typeof snapshot === "string" && uuid.test(snapshot)
     && typeof reference === "number" && Number.isSafeInteger(reference) && reference >= 0;
 }
 
-function isRateSnapshot(value: unknown): value is ExchangeRateSnapshot {
+export function isRateSnapshot(value: unknown): value is ExchangeRateSnapshot {
   return isRecord(value)
     && typeof value.id === "string" && uuid.test(value.id)
     && (value.baseCurrency === "EUR" || value.baseCurrency === "HUF") && value.quoteCurrency === "TWD"
@@ -119,4 +123,25 @@ export function parseExpensesResponse(value: unknown): ParseResult<ExpensesRespo
     }
   }
   return { ok: false, issues: [{ path: "expenses", message: "支出回應格式不正確。" }] };
+}
+
+export interface ExchangeRateResponse {
+  currency: ExpenseCurrency;
+  date: string;
+  rate: string | null;
+  snapshot: ExchangeRateSnapshot | null;
+}
+
+export type ExpenseMutation =
+  | { action: "create"; id: null; input: ExpenseInput; expectedVersion: 0 }
+  | { action: "update"; id: string; input: ExpenseInput; expectedVersion: number }
+  | { action: "delete"; id: string; input: null; expectedVersion: number };
+
+/** Convert between currencies stored with the same minor unit scale. */
+export function convertExpenseToTwdMinor(amountMinor: number, rate: string): number | null {
+  if (!/^\d+(?:\.\d+)?$/.test(rate)) return null;
+  const [whole, fraction = ""] = rate.split(".");
+  const scale = 10n ** BigInt(fraction.length);
+  const result = (BigInt(amountMinor) * BigInt(whole + fraction) + scale / 2n) / scale;
+  return result <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(result) : null;
 }
