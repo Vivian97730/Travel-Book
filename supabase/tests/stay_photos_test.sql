@@ -1,0 +1,20 @@
+begin;
+set local search_path = public, extensions, pg_catalog;
+select plan(10);
+select is((select public from storage.buckets where id='stay-photos'),false,'bucket is private');
+select is((select file_size_limit::int from storage.buckets where id='stay-photos'),2097152,'bucket limits size');
+select is((select allowed_mime_types from storage.buckets where id='stay-photos'),array['image/jpeg'],'bucket limits types');
+create temporary table photo_input as select '{"name":"照片測試","city":"測試","address":"測試","startDate":"2027-02-06","endDate":"2027-02-08","checkin":"15:00","checkout":"11:00","photo":{"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}}'::jsonb as input;
+select throws_ok($$select public.mutate_trip_stay('11111111-1111-4111-8111-111111111111','create',null,(select input from photo_input),0,gen_random_uuid())$$,'22023','VALIDATION_FAILED','missing storage object rejected');
+-- Metadata-only fixtures, rolled back; no actual image is uploaded by SQL tests.
+insert into storage.objects(bucket_id,name) values ('stay-photos','22222222-2222-4222-8222-222222222222/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jpg');
+select throws_ok($$select public.mutate_trip_stay('11111111-1111-4111-8111-111111111111','create',null,(select input from photo_input),0,gen_random_uuid())$$,'22023','VALIDATION_FAILED','cross trip object rejected');
+insert into storage.objects(bucket_id,name) values ('stay-photos','11111111-1111-4111-8111-111111111111/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jpg');
+create temporary table photo_saved as select public.mutate_trip_stay('11111111-1111-4111-8111-111111111111','create',null,(select input from photo_input),0,gen_random_uuid()) as response;
+select is((select response->'stays'->0->'photo' from photo_saved),'{"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}'::jsonb,'same trip photo persists');
+select throws_ok($$select public.mutate_trip_stay('11111111-1111-4111-8111-111111111111','update',(select (response->'stays'->0->>'id')::uuid from photo_saved),(select input || '{"photo":null}'::jsonb from photo_input),2,gen_random_uuid())$$,'P0001','VERSION_CONFLICT','stale photo removal rejected');
+select is(public.mutate_trip_stay('11111111-1111-4111-8111-111111111111','update',(select (response->'stays'->0->>'id')::uuid from photo_saved),(select input || '{"photo":null}'::jsonb from photo_input),1,gen_random_uuid())->'stays'->0->'photo','null'::jsonb,'remove restores default');
+select function_privs_are('public','mutate_trip_stay',array['uuid','text','uuid','jsonb','bigint','uuid'],'anon',array[]::text[],'anon cannot attach photos');
+select function_privs_are('public','get_trip_stays',array['uuid'],'authenticated',array[]::text[],'browser cannot bypass API');
+select * from finish();
+rollback;

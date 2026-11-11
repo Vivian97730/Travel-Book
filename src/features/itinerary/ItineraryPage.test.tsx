@@ -200,3 +200,24 @@ describe("itinerary page public behavior", () => {
     expect(conflictHtml).toContain('role="alert"');
   });
 });
+
+it("places overnight stays after editable items and excludes checkout day", () => {
+  const day = sampleTripDays[1];
+  const common = {
+    city: day.city, address: "測試地址", checkin: "15:00", checkout: "11:00",
+    placeId: null, version: 1, photo: null,
+  };
+  const stays = [
+    { ...common, id: "previous", name: "已退房住宿", startDate: "2027-02-05", endDate: day.date },
+    { ...common, id: "current", name: "今晚住宿", startDate: day.date, endDate: "2027-02-08" },
+    { ...common, id: "future", name: "尚未入住", startDate: "2027-02-08", endDate: "2027-02-09" },
+  ];
+  const html = renderToStaticMarkup(<ItineraryDayView
+    day={day} dates={[day.date]} selectedDate={day.date} stays={stays} editing
+    onSelectDate={() => undefined} onViewItem={() => undefined}
+  />);
+  expect(html.indexOf("今晚住宿")).toBeGreaterThan(html.indexOf(day.items.at(-1)!.title));
+  expect(html).toContain("Check-in 15:00 後");
+  expect(html).toContain(encodeURIComponent("今晚住宿"));
+  expect(html).not.toMatch(/已退房住宿|尚未入住|拖曳今晚住宿|修改今晚住宿|刪除今晚住宿/);
+});
