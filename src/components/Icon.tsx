@@ -24,6 +24,7 @@ const paths = {
   train: <><rect x="5" y="3" width="14" height="15" rx="4" /><path d="M8 21l2-3M16 18l2 3M8 8h8M8 13h.01M16 13h.01" /></>,
   sight: <path d="M4 21h16M6 21V10h12v11M8 10V6h8v4M10 6V3h4v3M10 14h4M10 18h4" />,
   shop: <path d="M4 9h16l-1 12H5zM8 9a4 4 0 0 1 8 0" />,
+  market: <path d="M4 10h16l-2 10H6zM8 10l4-6 4 6M8 14v2M12 14v2M16 14v2" />,
   map: <><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z" /><path d="M9 3v15M15 6v15" /></>,
   chevron: <path d="m9 18 6-6-6-6" />,
 } as const;

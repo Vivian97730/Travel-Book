@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { parseApiError } from "../../../packages/contracts/src/errors";
+import { ExpenseMutationError } from "./adapters/postgres/expensesStore";
 import { handleRequest, type HandlerDependencies } from "./handler";
 
 const verifiedAccess = {
@@ -24,8 +25,15 @@ const tripHome = {
   facts: [],
 };
 
+const emptyExpenses = { schemaVersion: 1 as const, expenses: [], totalsMinor: { TWD: "0", EUR: "0", HUF: "0" }, rates: [] };
+
 function dependencies(verify = vi.fn(async () => verifiedAccess)): HandlerDependencies {
   return {
+    ratesService: { getRate: vi.fn(async (currency, date) => ({ currency, date, rate: null, snapshot: null })) },
+    expensesStore: {
+      getExpenses: vi.fn(async () => emptyExpenses),
+      mutateExpense: vi.fn(async () => emptyExpenses),
+    },
     staysStore: {
       getStays: vi.fn(async () => ({ schemaVersion: 1 as const, stays: [] })),
       mutateStay: vi.fn(async () => ({ schemaVersion: 1 as const, stays: [] })),
@@ -425,5 +433,114 @@ describe("travel-book-api handler", () => {
 
     expect(response.status).toBe(404);
     expect(parseApiError(body)).toMatchObject({ ok: true, value: { error: { code: "RESOURCE_NOT_FOUND" } } });
+  });
+});
+
+describe("GET /v1/expenses", () => {
+  it("rejects missing and revoked tokens before reading expenses", async () => {
+    const deps = dependencies();
+    deps.accessStore.verify = vi.fn(async () => null);
+    for (const headers of [undefined, { authorization: "Bearer revoked-fixture" }]) {
+      const response = await handleRequest(new Request("https://test.invalid/v1/expenses", { headers }), deps);
+      expect(response.status).toBe(401);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.json()).toMatchObject({ error: { code: "ACCESS_DENIED" } });
+    }
+    expect(deps.expensesStore.getExpenses).not.toHaveBeenCalled();
+  });
+
+  it("scopes reads to each verified token's trip and ignores query trip IDs", async () => {
+    const deps = dependencies();
+    const first = verifiedAccess.trip.id;
+    const second = "22222222-2222-4222-8222-222222222222";
+    deps.accessStore.verify = vi.fn(async (token) => ({
+      ...verifiedAccess, trip: { ...verifiedAccess.trip, id: token === "fixture-a" ? first : second },
+    }));
+    deps.expensesStore.getExpenses = vi.fn(async (tripId) => ({
+      schemaVersion: 1, expenses: [], totalsMinor: { TWD: tripId === first ? "100" : "200", EUR: "0", HUF: "0" }, rates: [],
+    }));
+
+    for (const [token, otherId, total] of [["fixture-a", second, "100"], ["fixture-b", first, "200"]]) {
+      const response = await handleRequest(new Request(`https://test.invalid/v1/expenses?tripId=${otherId}`, {
+        headers: { authorization: `Bearer ${token}` },
+      }), deps);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.json()).toMatchObject({ totalsMinor: { TWD: total } });
+    }
+    expect(deps.expensesStore.getExpenses).toHaveBeenNthCalledWith(1, first);
+    expect(deps.expensesStore.getExpenses).toHaveBeenNthCalledWith(2, second);
+  });
+});
+
+describe("GET /v1/rates", () => {
+  const url = "https://test.invalid/v1/rates";
+  const headers = { authorization: "Bearer fixture" };
+
+  it("requires private access before looking up a rate", async () => {
+    const deps = dependencies();
+    const response = await handleRequest(new Request(`${url}?currency=EUR&date=2026-11-01`), deps);
+    expect(response.status).toBe(401);
+    expect(deps.ratesService.getRate).not.toHaveBeenCalled();
+  });
+
+  it.each(["currency=USD&date=2026-11-01", "currency=EUR&date=2026-02-29", "currency=EUR"])(
+    "rejects invalid query %s", async (query) => {
+      const deps = dependencies();
+      const response = await handleRequest(new Request(`${url}?${query}`, { headers }), deps);
+      expect(response.status).toBe(422);
+      expect(deps.ratesService.getRate).not.toHaveBeenCalled();
+    },
+  );
+
+  it("returns an explicit unavailable rate and disallows caching of the authenticated response", async () => {
+    const deps = dependencies();
+    const response = await handleRequest(new Request(`${url}?currency=HUF&date=2026-11-01`, { headers }), deps);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({ currency: "HUF", date: "2026-11-01", rate: null, snapshot: null });
+  });
+});
+
+describe("expense mutations", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  const key = "22222222-2222-4222-8222-222222222222";
+  const input = { date: "2027-02-06", title: "午餐", category: "食物", currency: "HUF", amountMinor: 130050 };
+  function request(method: string, body: unknown, token = true, withKey = true) {
+    return new Request(`https://example.test/v1/expenses${method === "POST" ? "" : "/" + id}`, {
+      method, body: JSON.stringify(body),
+      headers: { ...(token ? { authorization: "Bearer fixture" } : {}), ...(withKey ? { "idempotency-key": key } : {}) },
+    });
+  }
+
+  it("authenticates and validates before fetching rates or writing", async () => {
+    const deps = dependencies();
+    expect((await handleRequest(request("POST", input, false), deps)).status).toBe(401);
+    expect((await handleRequest(request("POST", input, true, false), deps)).status).toBe(422);
+    expect((await handleRequest(request("PATCH", { ...input, expectedVersion: 0 }), deps)).status).toBe(422);
+    expect(deps.ratesService.getRate).not.toHaveBeenCalled();
+    expect(deps.expensesStore.mutateExpense).not.toHaveBeenCalled();
+  });
+
+  it("saves original currency when rates fail and forwards the retry key", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.ratesService.getRate).mockRejectedValue(new Error("offline"));
+    const result = await handleRequest(request("POST", input), deps);
+    expect(result.status).toBe(201);
+    expect(result.headers.get("cache-control")).toBe("no-store");
+    expect(deps.expensesStore.mutateExpense).toHaveBeenCalledWith(verifiedAccess.trip.id,
+      { action: "create", id: null, input, expectedVersion: 0 }, key, null);
+  });
+
+  it("uses the requested date for edits and reports stale versions", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.expensesStore.mutateExpense).mockRejectedValueOnce(new ExpenseMutationError("VERSION_CONFLICT"));
+    const result = await handleRequest(request("PATCH", { ...input, expectedVersion: 3 }), deps);
+    expect(result.status).toBe(409);
+    expect(await result.json()).toMatchObject({ error: { code: "VERSION_CONFLICT" } });
+    expect(deps.ratesService.getRate).toHaveBeenCalledWith("HUF", input.date);
+    expect((await handleRequest(request("DELETE", { expectedVersion: 4 }), deps)).status).toBe(200);
+    expect(deps.expensesStore.mutateExpense).toHaveBeenLastCalledWith(verifiedAccess.trip.id,
+      { action: "delete", id, input: null, expectedVersion: 4 }, key, null);
   });
 });

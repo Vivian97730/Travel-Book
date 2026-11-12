@@ -1,10 +1,18 @@
+import { ExpenseMutationError } from "./adapters/postgres/expensesStore.ts";
+import { isRateRequestCurrency, isRateRequestDate } from "./modules/rates/ratesService.ts";
 import { readStayPhoto, stayPhotoIdPattern, type StayPhotosStore } from "./stayPhotos.ts";
 import {
+  isRecord,
+  parseExpenseInput,
   parseMutationMetadata,
+  type ExpenseMutation,
   parseSaveTravelFactsRequest,
   parseSaveTripDayRequest,
   type AccessVerifyResponse,
   type ApiErrorCode,
+  type ExpensesResponse,
+  type ExpenseCurrency,
+  type ExchangeRateResponse,
   type SaveTripDayItem,
   type SaveTravelFact,
   type TripDay,
@@ -41,6 +49,11 @@ export interface HomeStore {
 }
 
 export interface HandlerDependencies {
+  ratesService: { getRate(currency: ExpenseCurrency, date: string): Promise<ExchangeRateResponse> };
+  expensesStore: {
+    getExpenses(tripId: string): Promise<ExpensesResponse | null>;
+    mutateExpense(tripId: string, mutation: ExpenseMutation, key: string, snapshotId: string | null): Promise<ExpensesResponse>;
+  };
   stayPhotosStore?: StayPhotosStore;
   staysStore: {
     getStays(tripId: string): Promise<StaysResponse | null>;
@@ -214,6 +227,81 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
           : code === "VALIDATION_FAILED"
             ? apiError(code, "住宿保存資料格式不正確。", requestId, 422, headers)
             : apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if (request.method === "GET" && url.pathname.endsWith("/v1/rates")) {
+    const token = bearerToken(request);
+    const privateHeaders = { ...headers, "cache-control": "no-store" };
+    try {
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      const currency = url.searchParams.get("currency") ?? "";
+      const date = url.searchParams.get("date") ?? "";
+      if (!verified) {
+        response = apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, privateHeaders);
+      } else if (!isRateRequestCurrency(currency) || !isRateRequestDate(date)) {
+        response = apiError("VALIDATION_FAILED", "請提供有效的幣別與支出日期。", requestId, 422, privateHeaders);
+      } else {
+        response = json(await dependencies.ratesService.getRate(currency, date), 200, privateHeaders);
+      }
+    } catch {
+      response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, privateHeaders);
+    }
+  } else if ((request.method === "POST" && url.pathname.endsWith("/v1/expenses"))
+    || ((request.method === "PATCH" || request.method === "DELETE") && /\/v1\/expenses\/[^/]+$/.test(url.pathname))) {
+    const privateHeaders = { ...headers, "cache-control": "no-store" };
+    try {
+      const token = bearerToken(request);
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      if (!verified) {
+        response = apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, privateHeaders);
+      } else {
+        const id = request.method === "POST" ? null : url.pathname.split("/").pop()!;
+        const body: unknown = await request.json().catch(() => null);
+        const metadata = parseMutationMetadata({
+          expectedVersion: id === null ? 0 : isRecord(body) ? body.expectedVersion : null,
+          idempotencyKey: request.headers.get("idempotency-key"),
+        });
+        const parsed = request.method === "DELETE" ? null : parseExpenseInput(body);
+        if (!metadata.ok || (id !== null && (!requestIdPattern.test(id) || !Number.isSafeInteger(metadata.value.expectedVersion) || metadata.value.expectedVersion < 1))
+          || parsed?.ok === false) {
+          response = apiError("VALIDATION_FAILED", "支出保存資料格式不正確。", requestId, 422, privateHeaders);
+        } else {
+          const { expectedVersion, idempotencyKey } = metadata.value;
+          const mutation: ExpenseMutation = parsed === null
+            ? { action: "delete", id: id!, input: null, expectedVersion }
+            : id === null
+              ? { action: "create", id, input: parsed.value, expectedVersion: 0 }
+              : { action: "update", id, input: parsed.value, expectedVersion };
+          const input = mutation.input;
+          const rate = input && input.currency !== "TWD"
+            ? await dependencies.ratesService.getRate(input.currency, input.date).catch(() => null)
+            : null;
+          const result = await dependencies.expensesStore.mutateExpense(verified.trip.id, mutation, idempotencyKey, rate?.snapshot?.id ?? null);
+          response = json(result, id === null ? 201 : 200, privateHeaders);
+        }
+      }
+    } catch (error) {
+      const code = error instanceof ExpenseMutationError ? error.code : null;
+      response = code === "VERSION_CONFLICT"
+        ? apiError(code, "資料已由其他裝置更新，請重新載入。", requestId, 409, privateHeaders)
+        : code === "RESOURCE_NOT_FOUND" ? apiError(code, "找不到指定支出。", requestId, 404, privateHeaders)
+          : code === "VALIDATION_FAILED" ? apiError(code, "支出保存資料格式不正確。", requestId, 422, privateHeaders)
+            : apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, privateHeaders);
+    }
+  } else if (request.method === "GET" && url.pathname.endsWith("/v1/expenses")) {
+    const token = bearerToken(request);
+    const privateHeaders = { ...headers, "cache-control": "no-store" };
+    try {
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      if (!verified) {
+        response = apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, privateHeaders);
+      } else {
+        const expenses = await dependencies.expensesStore.getExpenses(verified.trip.id);
+        response = expenses
+          ? json(expenses, 200, privateHeaders)
+          : apiError("RESOURCE_NOT_FOUND", "找不到旅程支出資料。", requestId, 404, privateHeaders);
+      }
+    } catch {
+      response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, privateHeaders);
     }
   } else if (request.method === "GET" && url.pathname.endsWith("/v1/stays")) {
     const token = bearerToken(request);

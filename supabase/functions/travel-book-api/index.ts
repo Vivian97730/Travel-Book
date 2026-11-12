@@ -1,3 +1,7 @@
+import { SupabaseRateCache } from "./adapters/postgres/rateCache.ts";
+import { fetchOfficialRate } from "./modules/rates/officialRates.ts";
+import { RatesService } from "./modules/rates/ratesService.ts";
+import { SupabaseExpensesStore } from "./adapters/postgres/expensesStore.ts";
 import { SupabaseStayPhotosStore } from "./stayPhotos.ts";
 import { handleRequest } from "./handler.ts";
 import { SupabaseAccessStore } from "./adapters/postgres/accessStore.ts";
@@ -8,6 +12,8 @@ import { SupabaseStaysStore } from "./adapters/postgres/staysStore.ts";
 
 const config = readRuntimeConfig((name) => Deno.env.get(name));
 const dependencies = {
+  ratesService: new RatesService(new SupabaseRateCache(config.supabaseUrl, config.secretKey), fetchOfficialRate),
+  expensesStore: new SupabaseExpensesStore(config.supabaseUrl, config.secretKey),
   stayPhotosStore: new SupabaseStayPhotosStore(config.supabaseUrl, config.secretKey),
   staysStore: new SupabaseStaysStore(config.supabaseUrl, config.secretKey),
   accessStore: new SupabaseAccessStore(config.supabaseUrl, config.secretKey),
