@@ -8,6 +8,7 @@ const paths = {
   wallet: <><path d="M4 6h15a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h13" /><path d="M16 12h5v4h-5a2 2 0 0 1 0-4z" /></>,
   list: <path d="m3 6 2 2 4-4M3 13l2 2 4-4M3 20l2 2 4-4M12 6h9M12 13h9M12 20h9" />,
   edit: <><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10z" /><path d="m14.5 7.5 3 3" /></>,
+  suitcase: <><rect x="4" y="7" width="16" height="13" rx="2" /><path d="M9 7V4h6v3M8 12v3M16 12v3" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
   check: <path d="m5 12 4 4L19 6" />,
   close: <path d="m6 6 12 12M18 6 6 18" />,
