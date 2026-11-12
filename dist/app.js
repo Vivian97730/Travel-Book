@@ -5,6 +5,12 @@ const tripDates = [
   ["02/14", "日", "維也納"], ["02/15", "一", "返程"],
 ];
 
+const airports = {
+  TPE: { city: "桃園", terminal: "T2" },
+  DXB: { city: "杜拜", terminal: "T3" },
+  VIE: { city: "維也納", terminal: "T3" },
+};
+
 const state = {
   view: getInitialView(),
   selectedDate: "02/06",
@@ -12,11 +18,11 @@ const state = {
   facts: [
     { id: 1, icon: "globe", title: "和台灣的時差", text: "冬季慢 7 小時" },
     { id: 2, icon: "exchange", title: "參考匯率", text: "EUR 1 ≈ TWD 35.2" },
-    { id: 3, icon: "plug", title: "插座形狀", text: "Type C／F，電壓 230V" },
+    { id: 3, icon: "plug", title: "插座形狀", text: "Type C／F\n電壓 230V" },
     { id: 4, icon: "water", title: "自來水", text: "奧地利可直接生飲" },
   ],
   itineraryItems: [
-    { id: 1, icon: "train", title: "搭地鐵前往美泉宮", note: "從住宿地點出發，約 25 分鐘" },
+    { id: 1, icon: "train", title: "搭地鐵前往美泉宮", note: "從住宿地點出發\n約 25 分鐘" },
     { id: 2, icon: "sight", title: "美泉宮與花園", note: "預留 2.5 小時，戶外注意保暖" },
     { id: 3, icon: "food", title: "中央咖啡館午餐", note: "尖峰可能候位，備案在地圖收藏" },
     { id: 4, icon: "shop", title: "維也納舊城散步", note: "依體力彈性調整" },
@@ -128,8 +134,14 @@ function homeScreen() {
         <section class="card section-card" aria-labelledby="flights-title">
           <div class="section-head"><div><h2 id="flights-title">航班資訊</h2><p>各段時間依當地時區顯示</p></div>${icon("plane", 23)}</div>
           <div class="flight-list">
-            ${flightRow("去程", "TPE", "00:20", "DXB", "06:15－08:55", "VIE", "12:25", "16 小時 05 分")}
-            ${flightRow("回程", "VIE", "21:45", "DXB", "06:25－08:45", "TPE", "20:40", "16 小時 55 分", 0, 1, 1)}
+            ${flightRow("去程 (2/5)", "19 小時 05 分", [
+              ["EK387", ["TPE", "00:20"], ["DXB", "06:15"]],
+              ["EK127", ["DXB", "08:55"], ["VIE", "12:25"]],
+            ])}
+            ${flightRow("回程 (2/14)", "15 小時 55 分", [
+              ["EK126", ["VIE", "21:45"], ["DXB", "06:25", 1]],
+              ["EK386", ["DXB", "08:45", 1], ["TPE", "20:40", 1]],
+            ])}
           </div>
         </section>
       </div>
@@ -142,12 +154,28 @@ function homeScreen() {
   </main>`;
 }
 
-function flightRow(label, from, fromTime, stop, stopTime, to, toTime, duration, fromDayOffset = 0, stopDayOffset = 0, toDayOffset = 0) {
-  return `<article class="flight-row"><span class="flight-direction">${icon("plane", 20)}</span><div><div class="flight-title"><strong>${label}</strong><span>${duration}</span></div><div class="flight-route"><div class="flight-airport"><strong>${from}</strong><span>${flightTime(fromTime, fromDayOffset)}</span></div><span class="flight-line"></span><div class="flight-airport flight-stop"><strong>${stop}</strong><span>杜拜轉機<br>${flightTime(stopTime, stopDayOffset)}</span></div><span class="flight-line"></span><div class="flight-airport"><strong>${to}</strong><span>${flightTime(toTime, toDayOffset)}</span></div></div></div></article>`;
+function flightRow(label, duration, [firstLeg, secondLeg]) {
+  return `<article class="flight-row"><span class="flight-direction">${icon("plane", 20)}</span><div>
+    <div class="flight-title"><strong>${label}</strong><span>${duration}</span></div>
+    ${flightLeg(...firstLeg)}
+    <p class="flight-transfer">杜拜轉機</p>
+    ${flightLeg(...secondLeg)}
+  </div></article>`;
 }
 
-function flightTime(time, dayOffset = 0) {
-  return `${time}${dayOffset ? `<small class="flight-day-offset">＋${dayOffset} 日</small>` : ""}`;
+function flightLeg(number, departure, arrival) {
+  return `<div class="flight-leg"><strong>${number}</strong><div class="flight-route">
+    ${flightAirport(...departure)}<span class="flight-line" aria-hidden="true"></span>${flightAirport(...arrival)}
+  </div></div>`;
+}
+
+function flightAirport(code, time, dayOffset = 0) {
+  const { city, terminal } = airports[code];
+  return `<div class="flight-airport"><strong>${city} ${code}</strong><span>${terminal} · ${time}</span>${dayOffset ? `<small class="flight-day-offset">＋${dayOffset} 日</small>` : ""}</div>`;
+}
+
+function escapeHtml(value) {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
 function itineraryScreen() {
@@ -175,10 +203,11 @@ function mapIllustration() {
 function scheduleItem({ id, icon: iconName, title, note }) {
   const categoryClass = { train: "transit", sight: "sight", food: "food", shop: "shopping" }[iconName] || "other";
   const mapUrl = googleMapsSearchUrl(title);
+  const safeTitle = escapeHtml(title);
   const controls = state.itineraryEditing
-    ? `<div class="schedule-controls"><span class="drag-handle" aria-hidden="true">${icon("grip", 20)}</span><button class="icon-button" type="button" data-edit-itinerary="${id}" aria-label="修改${title}">${icon("edit", 17)}</button><button class="icon-button danger-icon" type="button" data-delete-itinerary="${id}" aria-label="刪除${title}">${icon("trash", 17)}</button></div>`
-    : `<button class="icon-button" type="button" data-view-itinerary="${id}" aria-label="檢視${title}">${icon("chevron", 18)}</button>`;
-  return `<article class="schedule-card ${state.itineraryEditing ? "is-editing" : ""}" data-itinerary-card="${id}"><span class="timeline-icon category-${categoryClass}">${icon(iconName, 21)}</span><div class="timeline-copy"><strong>${title}</strong><p>${note}</p><a class="navigate-link" href="${mapUrl}" target="_blank" rel="noreferrer">${icon("location", 14)}導航</a></div>${controls}</article>`;
+    ? `<div class="schedule-controls"><span class="drag-handle" aria-hidden="true">${icon("grip", 20)}</span><button class="icon-button" type="button" data-edit-itinerary="${id}" aria-label="修改${safeTitle}">${icon("edit", 17)}</button><button class="icon-button danger-icon" type="button" data-delete-itinerary="${id}" aria-label="刪除${safeTitle}">${icon("trash", 17)}</button></div>`
+    : `<button class="icon-button" type="button" data-toggle-itinerary aria-expanded="false" aria-controls="itinerary-note-${id}" aria-label="行程內容：${safeTitle}">${icon("chevron", 18)}</button>`;
+  return `<article class="schedule-card ${state.itineraryEditing ? "is-editing" : ""}" data-itinerary-card="${id}"><span class="timeline-icon category-${categoryClass}">${icon(iconName, 21)}</span><div class="timeline-copy"><strong>${safeTitle}</strong><p id="itinerary-note-${id}">${escapeHtml(note)}</p><a class="navigate-link" href="${mapUrl}" target="_blank" rel="noreferrer">${icon("location", 14)}導航</a></div>${controls}</article>`;
 }
 
 function googleMapsSearchUrl(placeName) {
@@ -259,7 +288,8 @@ function listsScreen() {
 }
 
 function checkRow(item, synced) {
-  return `<article class="check-row ${item.done ? "is-done" : ""}"><button class="check-button ${item.done ? "is-done" : ""}" type="button" data-toggle-list="${item.id}" aria-label="${item.done ? "標示為未完成" : "標示為完成"}">${item.done ? icon("check", 17) : ""}</button><div class="check-copy"><strong>${item.title}</strong></div><button class="icon-button" type="button" data-delete-list="${item.id}" aria-label="刪除${item.title}">${icon("trash", 17)}</button></article>`;
+  const title = escapeHtml(item.title);
+  return `<article class="check-row ${item.done ? "is-done" : ""}"><button class="check-button ${item.done ? "is-done" : ""}" type="button" data-toggle-list="${item.id}" aria-label="${item.done ? "標示為未完成" : "標示為完成"}">${item.done ? icon("check", 17) : ""}</button><div class="check-copy"><strong>${title}</strong></div><button class="icon-button" type="button" data-delete-list="${item.id}" aria-label="刪除${title}">${icon("trash", 17)}</button></article>`;
 }
 
 function bottomNav() {
@@ -270,7 +300,6 @@ function bottomNav() {
 function dialogs() {
   return `<dialog class="dialog" id="expense-dialog"><form class="dialog-form" data-form="expense"><input type="hidden" name="id"><header class="dialog-head"><h2 id="expense-dialog-title">新增支出</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="關閉">${icon("close", 20)}</button></header><div class="field-group"><label for="expense-date">日期</label><input class="field" id="expense-date" name="date" type="date" min="2027-02-05" max="2027-02-15" value="2027-02-06" required></div><div class="field-group"><label for="expense-name">名稱</label><input class="field" id="expense-name" name="title" placeholder="例如：午餐" required maxlength="50"></div><div class="field-group"><label for="expense-category">類別</label><select class="field" id="expense-category" name="category"><option>食物</option><option>交通</option><option>景點</option><option>逛街</option><option>超市</option><option>機票</option></select></div><div class="field-group"><label for="expense-currency">幣別</label><select class="field" id="expense-currency" name="currency"><option value="TWD">台幣 TWD</option><option value="EUR">歐元 EUR</option><option value="HUF">匈牙利幣 HUF</option></select></div><div class="field-group"><label for="expense-amount">金額</label><input class="field" id="expense-amount" name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" required></div><div class="dialog-actions"><button class="danger-button delete-expense-button" type="button" data-action="delete-expense" hidden>${icon("trash", 17)}刪除支出</button><button class="secondary-button" type="button" data-action="close-dialog">取消</button><button class="primary-button" type="submit" id="expense-submit">新增</button></div></form></dialog>
   <dialog class="dialog" id="list-dialog"><form class="dialog-form" data-form="list"><header class="dialog-head"><h2>新增清單項目</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="關閉">${icon("close", 20)}</button></header><div class="field-group"><label for="list-name">項目名稱</label><input class="field" id="list-name" name="title" placeholder="例如：暖暖包" required maxlength="50"></div><div class="dialog-actions"><button class="secondary-button" type="button" data-action="close-dialog">取消</button><button class="primary-button" type="submit">新增</button></div></form></dialog>
-  <dialog class="dialog" id="itinerary-dialog"><div class="dialog-form"><header class="dialog-head"><h2 id="itinerary-dialog-title"></h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="關閉">${icon("close", 20)}</button></header><section class="itinerary-detail"><p id="itinerary-detail-note"></p><div class="dialog-actions"><button class="secondary-button" type="button" data-action="close-dialog">關閉</button><a class="primary-button" id="itinerary-detail-map" target="_blank" rel="noreferrer" style="text-decoration:none">${icon("location", 17)}導航</a></div></section></div></dialog>
   <dialog class="dialog" id="itinerary-edit-dialog"><form class="dialog-form" data-form="itinerary"><input type="hidden" name="id"><header class="dialog-head"><h2 id="itinerary-edit-title">修改行程</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="關閉">${icon("close", 20)}</button></header><div class="field-group"><label for="itinerary-title">行程名稱</label><input class="field" id="itinerary-title" name="title" required maxlength="80"></div><div class="field-group"><label for="itinerary-note">內容</label><textarea class="field" id="itinerary-note" name="note" required maxlength="300"></textarea></div><div class="field-group"><label for="itinerary-category">類別</label><select class="field" id="itinerary-category" name="icon"><option value="train">交通</option><option value="sight">景點</option><option value="food">食物</option><option value="shop">逛街</option></select></div><div class="dialog-actions"><button class="secondary-button" type="button" data-action="close-dialog">取消</button><button class="primary-button" type="submit">儲存</button></div></form></dialog>
   <dialog class="dialog" id="stay-dialog"><form class="dialog-form" data-form="stay"><input type="hidden" name="id"><input type="hidden" name="photoMode"><header class="dialog-head"><h2 id="stay-dialog-title">新增住宿</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="關閉">${icon("close", 20)}</button></header><div class="field-group"><label for="stay-name">住宿名稱</label><input class="field" id="stay-name" name="title" placeholder="貼上 Google Maps 上的住宿名稱" required maxlength="80"><small class="field-hint">輸入或貼上後會自動尋找住宿照片。</small></div><section class="stay-photo-finder" data-photo-state="idle" aria-live="polite"><div class="stay-photo-thumb">${icon("image", 24)}</div><div><strong>住宿照片</strong><p id="stay-photo-status">等待輸入住宿名稱</p><small id="stay-photo-attribution">正式版將顯示 Google Maps 與照片作者標示。</small></div></section><div class="field-group"><label for="stay-city">城市</label><input class="field" id="stay-city" name="city" placeholder="例如：維也納" required maxlength="40"></div><div class="date-field-row"><div class="field-group"><label for="stay-start-date">入住日期</label><input class="field" id="stay-start-date" name="startDate" type="date" min="2027-02-05" max="2027-02-15" required></div><div class="field-group"><label for="stay-end-date">退房日期</label><input class="field" id="stay-end-date" name="endDate" type="date" min="2027-02-05" max="2027-02-15" required></div></div><div class="field-group"><label for="stay-address">地址</label><input class="field" id="stay-address" name="address" placeholder="輸入完整住宿地址" required maxlength="160"></div><div class="date-field-row"><div class="field-group"><label for="stay-checkin">Check-in</label><input class="field" id="stay-checkin" name="checkin" type="time" required></div><div class="field-group"><label for="stay-checkout">Check-out</label><input class="field" id="stay-checkout" name="checkout" type="time" required></div></div><div class="dialog-actions"><button class="danger-button delete-stay-button" type="button" data-action="delete-stay" hidden>${icon("trash", 17)}刪除住宿</button><button class="secondary-button" type="button" data-action="close-dialog">取消</button><button class="primary-button" type="submit">儲存</button></div></form></dialog>
   <dialog class="dialog" id="edit-dialog"><form class="dialog-form" method="dialog"><header class="dialog-head"><h2>原型互動示意</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="關閉">${icon("close", 20)}</button></header><p>這個項目在正式版本會開啟對應的編輯表單；目前原型先展示入口與資訊層級。</p><div class="dialog-actions"><button class="primary-button" type="submit">知道了</button></div></form></dialog>`;
@@ -293,7 +322,10 @@ function bindEvents() {
   document.querySelectorAll("[data-delete-fact]").forEach((button) => button.addEventListener("click", () => deleteFact(Number(button.dataset.deleteFact))));
   document.querySelectorAll("[data-edit-expense]").forEach((button) => button.addEventListener("click", () => openExpenseDialog(Number(button.dataset.editExpense))));
   document.querySelectorAll("[data-expense-date]").forEach((button) => button.addEventListener("click", () => toggleExpenseDate(button.dataset.expenseDate)));
-  document.querySelectorAll("[data-view-itinerary]").forEach((button) => button.addEventListener("click", () => openItineraryDialog(Number(button.dataset.viewItinerary))));
+  document.querySelectorAll("[data-toggle-itinerary]").forEach((button) => button.addEventListener("click", () => {
+    const expanded = button.closest(".schedule-card").classList.toggle("is-expanded");
+    button.setAttribute("aria-expanded", String(expanded));
+  }));
   document.querySelectorAll("[data-edit-itinerary]").forEach((button) => button.addEventListener("click", () => openItineraryEditDialog(Number(button.dataset.editItinerary))));
   document.querySelectorAll("[data-delete-itinerary]").forEach((button) => button.addEventListener("click", () => deleteItineraryItem(Number(button.dataset.deleteItinerary))));
   document.querySelectorAll("[data-edit-stay]").forEach((button) => button.addEventListener("click", () => openStayDialog(Number(button.dataset.editStay))));
@@ -351,16 +383,6 @@ function deleteFact(id) {
   state.facts = state.facts.filter((fact) => fact.id !== id);
   toast("已移除小知識");
   render();
-}
-
-function openItineraryDialog(id) {
-  const item = state.itineraryItems.find((entry) => entry.id === id);
-  const dialog = document.querySelector("#itinerary-dialog");
-  if (!item || !dialog) return;
-  dialog.querySelector("#itinerary-dialog-title").textContent = item.title;
-  dialog.querySelector("#itinerary-detail-note").textContent = item.note;
-  dialog.querySelector("#itinerary-detail-map").href = googleMapsSearchUrl(item.title);
-  dialog.showModal();
 }
 
 function openItineraryEditDialog(id = null) {
