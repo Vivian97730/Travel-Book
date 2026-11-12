@@ -1,12 +1,15 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
+  FlightCard,
   FlightDuration,
   FlightLegLabel,
   HomeSaveRecovery,
   homeSaveFailureFor,
   tripRangeText,
 } from "./HomePage";
+
+import { initialTripHome } from "./data";
 
 describe("home overview labels", () => {
   it("matches the approved Prototype text without extra wording", () => {
@@ -18,6 +21,13 @@ describe("home overview labels", () => {
     const html = renderToStaticMarkup(<FlightDuration duration="19 小時 05 分" />);
     expect(html).toBe("<span>19 小時 05 分</span>");
     expect(html).not.toContain("總旅行時間");
+  });
+
+  it("shows the return date and both flights with separate Dubai times", () => {
+    const html = renderToStaticMarkup(<FlightCard flight={initialTripHome.flights[1]} />);
+    expect(html).toContain("回程 (2/14)");
+    expect(html).toMatch(/EK126.*T3 · 21:45.*T3 · 06:25.*杜拜轉機.*EK386.*T3 · 08:45.*T2 · 20:40/);
+    expect(html.match(/＋1 日/g)).toHaveLength(3);
   });
 
   it("keeps the approved flight row labels compact", () => {

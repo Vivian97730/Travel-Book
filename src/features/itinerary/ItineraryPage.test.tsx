@@ -16,7 +16,6 @@ describe("itinerary page public behavior", () => {
       dates={["2027-02-05", "2027-02-06", "2027-02-07", "2027-02-08", "2027-02-09", "2027-02-10", "2027-02-11", "2027-02-12", "2027-02-13", "2027-02-14", "2027-02-15"]}
       selectedDate="2027-02-06"
       onSelectDate={() => undefined}
-      onViewItem={() => undefined}
     />);
 
     expect((html.match(/class="date-button"/g) ?? [])).toHaveLength(11);
@@ -28,6 +27,8 @@ describe("itinerary page public behavior", () => {
     expect(html).toContain('data-map-points="Schloss Schonbrunn|Cafe Central"');
     expect(html).toContain('data-map-orders="2|3"');
     expect(html).toContain("編輯城市與行程");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-controls="itinerary-note-');
     expect(html).not.toContain("新增行程");
     expect(html).not.toContain("修改中央咖啡館午餐");
     expect(html).not.toContain("刪除中央咖啡館午餐");
@@ -47,7 +48,6 @@ describe("itinerary page public behavior", () => {
       editing
       saving={false}
       onSelectDate={() => undefined}
-      onViewItem={() => undefined}
       onToggleEditing={() => undefined}
       onAddItem={() => undefined}
       onEditItem={() => undefined}
@@ -60,7 +60,7 @@ describe("itinerary page public behavior", () => {
     expect(html).toContain("修改中央咖啡館午餐");
     expect(html).toContain("刪除中央咖啡館午餐");
     expect(html).toContain("拖曳中央咖啡館午餐");
-    expect(html).not.toContain("檢視中央咖啡館午餐");
+    expect(html).not.toContain("行程內容：中央咖啡館午餐");
   });
 
   it("keeps the loaded itinerary readable but disables new actions offline", () => {
@@ -70,7 +70,6 @@ describe("itinerary page public behavior", () => {
       selectedDate="2027-02-06"
       online={false}
       onSelectDate={() => undefined}
-      onViewItem={() => undefined}
       onToggleEditing={() => undefined}
     />);
 
@@ -92,7 +91,6 @@ describe("itinerary page public behavior", () => {
       online={false}
       editing
       onSelectDate={() => undefined}
-      onViewItem={() => undefined}
       onToggleEditing={() => undefined}
       onAddItem={() => undefined}
       onEditItem={() => undefined}
@@ -125,7 +123,6 @@ describe("itinerary page public behavior", () => {
       selectedDate="2027-02-06"
       editing
       onSelectDate={() => undefined}
-      onViewItem={() => undefined}
     />);
 
     expect(addedHtml).toContain("晚間音樂會");
@@ -142,7 +139,6 @@ describe("itinerary page public behavior", () => {
       selectedDate="2027-02-06"
       editing
       onSelectDate={() => undefined}
-      onViewItem={() => undefined}
     />);
 
     expect(deletedHtml).toContain('data-map-points="Schloss Schonbrunn"');
@@ -214,7 +210,7 @@ it("places overnight stays after editable items and excludes checkout day", () =
   ];
   const html = renderToStaticMarkup(<ItineraryDayView
     day={day} dates={[day.date]} selectedDate={day.date} stays={stays} editing
-    onSelectDate={() => undefined} onViewItem={() => undefined}
+    onSelectDate={() => undefined}
   />);
   expect(html.indexOf("今晚住宿")).toBeGreaterThan(html.indexOf(day.items.at(-1)!.title));
   expect(html).toContain("Check-in 15:00 後");

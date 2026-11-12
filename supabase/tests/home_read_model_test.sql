@@ -2,7 +2,7 @@ begin;
 
 set local search_path = public, extensions, pg_catalog;
 
-select plan(35);
+select plan(37);
 
 select has_table('app_private', 'flights', 'flights table exists');
 select has_table('app_private', 'travel_facts', 'travel facts table exists');
@@ -124,6 +124,17 @@ select ok(
     where trip_id = '11111111-1111-4111-8111-111111111111' and direction = '回程'
   ),
   'return flight crosses a calendar day on its absolute timeline'
+);
+
+select is(
+  public.get_trip_home('11111111-1111-4111-8111-111111111111')->'flights'->1->'legs'->0->>'dateLabel',
+  '2/14',
+  'home lookup returns the return departure date'
+);
+select is(
+  public.get_trip_home('11111111-1111-4111-8111-111111111111')->'flights'->1->'legs'->2->>'flightNumber',
+  'EK386',
+  'home lookup returns the Dubai connection flight number'
 );
 
 select throws_like(

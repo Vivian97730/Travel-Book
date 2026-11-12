@@ -68,7 +68,6 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
   const [day, setDay] = useState<TripDay | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewingItem, setViewingItem] = useState<ItineraryItem | null>(null);
   const [editing, setEditing] = useState(false);
   const [draftItems, setDraftItems] = useState<ItineraryItem[]>([]);
   const [formItem, setFormItem] = useState<ItineraryItem | null | undefined>(undefined);
@@ -83,7 +82,6 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
     let active = true;
     setLoading(true);
     setError(null);
-    setViewingItem(null);
     setEditing(false);
     setDraftItems([]);
     setFormItem(undefined);
@@ -208,7 +206,6 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
       editing={editing}
       saving={saving}
       onSelectDate={setSelectedDate}
-      onViewItem={setViewingItem}
       onToggleEditing={editing ? finishEditing : beginEditing}
       onAddItem={() => setFormItem(null)}
       onEditItem={setFormItem}
@@ -220,7 +217,6 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
       busy={saving}
       onRecover={saveFailure.kind === "conflict" ? reloadAfterConflict : finishEditing}
     />}
-    {viewingItem && <ItineraryDialog item={viewingItem} onClose={() => setViewingItem(null)} />}
     {formItem !== undefined && <ItineraryItemFormDialog item={formItem} onCancel={() => setFormItem(undefined)} onSubmit={saveDraftItem} />}
   </>;
 }
@@ -247,7 +243,6 @@ export function ItineraryDayView({
   editing = false,
   saving = false,
   onSelectDate,
-  onViewItem,
   onToggleEditing = () => undefined,
   onAddItem = () => undefined,
   onEditItem = () => undefined,
@@ -262,7 +257,6 @@ export function ItineraryDayView({
   editing?: boolean;
   saving?: boolean;
   onSelectDate(date: string): void;
-  onViewItem(item: ItineraryItem): void;
   onToggleEditing?(): void;
   onAddItem?(): void;
   onEditItem?(item: ItineraryItem): void;
@@ -270,6 +264,16 @@ export function ItineraryDayView({
   onReorderItem?(sourceId: string, targetId: string): void;
 }) {
   const canEdit = editing && online;
+  const [expandedItems, setExpandedItems] = useState<ReadonlySet<string>>(() => new Set());
+
+  function toggleItem(id: string) {
+    setExpandedItems((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   const dailyStays = stays.filter((stay) => stay.startDate <= day.date && day.date < stay.endDate);
   const mappedItems: ItineraryMapLocation[] = day.items.flatMap((item, index) => {
     if (item.place === null || item.place.latitude === null || item.place.longitude === null) return [];
@@ -295,12 +299,16 @@ export function ItineraryDayView({
       <section className="card section-card" aria-labelledby="city-title">
         <div className="city-head"><div><p className="eyebrow">{day.date}・週{day.weekday}</p><h2 id="city-title">{day.city}</h2><p>{editing ? (online ? "編輯模式：可新增、修改、刪除或拖曳排序。" : "離線唯讀：草稿已保留，連線後可繼續編輯。") : day.summary}</p></div><button className="icon-button" type="button" onClick={onToggleEditing} disabled={saving || !online} aria-label={editing ? "完成行程編輯" : "編輯城市與行程"} aria-pressed={editing}><Icon name={editing ? "check" : "edit"} size={19} /></button></div>
         <div className="schedule-list" style={{ marginTop: "1.25rem" }}>
-          {day.items.map((item, index) => <article className={`schedule-card ${canEdit ? "is-editing" : ""}`} data-itinerary-card={item.id} key={item.id}>
-            <span className={`timeline-icon category-${item.category}`}><Icon name={categoryIcons[item.category]} size={21} /></span>
-            <div className="timeline-copy"><strong>{item.title}</strong><p>{item.note}</p>{item.place && <small className="itinerary-place-name">{item.place.name}</small>}<a className="navigate-link" href={googleMapsSearchUrl(item.title)} target="_blank" rel="noreferrer"><Icon name="location" size={14} />導航</a></div>
-            {canEdit ? <div className="schedule-controls"><DragHandle item={item} previousItem={day.items[index - 1]} nextItem={day.items[index + 1]} onReorder={onReorderItem} /><button className="icon-button" type="button" onClick={() => onEditItem(item)} aria-label={`修改${item.title}`}><Icon name="edit" size={17} /></button><button className="icon-button danger-icon" type="button" onClick={() => onDeleteItem(item.id)} aria-label={`刪除${item.title}`}><Icon name="trash" size={17} /></button></div> : <button className="icon-button" type="button" onClick={() => onViewItem(item)} aria-label={`檢視${item.title}`}><Icon name="chevron" size={18} /></button>}
-          </article>)}
-          {dailyStays.map((stay) => <article className="schedule-card" key={stay.id}>
+          {day.items.map((item, index) => {
+            const expanded = !canEdit && expandedItems.has(item.id);
+            const noteId = `itinerary-note-${item.id}`;
+            return <article className={`schedule-card ${canEdit ? "is-editing" : ""} ${expanded ? "is-expanded" : ""}`} data-itinerary-card={item.id} key={item.id}>
+              <span className={`timeline-icon category-${item.category}`}><Icon name={categoryIcons[item.category]} size={21} /></span>
+              <div className="timeline-copy"><strong>{item.title}</strong><p id={noteId}>{item.note}</p>{item.place && <small className="itinerary-place-name">{item.place.name}</small>}<a className="navigate-link" href={googleMapsSearchUrl(item.title)} target="_blank" rel="noreferrer"><Icon name="location" size={14} />導航</a></div>
+              {canEdit ? <div className="schedule-controls"><DragHandle item={item} previousItem={day.items[index - 1]} nextItem={day.items[index + 1]} onReorder={onReorderItem} /><button className="icon-button" type="button" onClick={() => onEditItem(item)} aria-label={`修改${item.title}`}><Icon name="edit" size={17} /></button><button className="icon-button danger-icon" type="button" onClick={() => onDeleteItem(item.id)} aria-label={`刪除${item.title}`}><Icon name="trash" size={17} /></button></div> : <button className="icon-button" type="button" data-toggle-itinerary onClick={() => toggleItem(item.id)} aria-expanded={expanded} aria-controls={noteId} aria-label={`行程內容：${item.title}`}><Icon name="chevron" size={18} /></button>}
+            </article>;
+          })}
+          {dailyStays.map((stay) => <article className="schedule-card is-expanded" key={stay.id}>
             <span className="timeline-icon category-stay"><Icon name="bed" size={21} /></span>
             <div className="timeline-copy">
               <strong>{stay.name}</strong>
@@ -425,11 +433,6 @@ function useDialogAccessibility(onClose: () => void) {
   }, []);
 
   return dialogRef;
-}
-
-function ItineraryDialog({ item, onClose }: { item: ItineraryItem; onClose(): void }) {
-  const dialogRef = useDialogAccessibility(onClose);
-  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="itinerary-dialog-title"><div className="dialog-form"><header className="dialog-head"><h2 id="itinerary-dialog-title">{item.title}</h2><button className="icon-button" type="button" onClick={onClose} aria-label="關閉"><Icon name="close" size={20} /></button></header><section className="itinerary-detail"><p>{item.note}</p><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onClose}>關閉</button><a className="primary-button" href={googleMapsSearchUrl(item.title)} target="_blank" rel="noreferrer"><Icon name="location" size={17} />導航</a></div></section></div></section></div>;
 }
 
 export function ItineraryItemFormDialog({ item, onCancel, onSubmit }: {

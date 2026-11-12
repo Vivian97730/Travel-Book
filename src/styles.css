@@ -13,6 +13,14 @@
   text-align: center;
 }
 
+.flight-route-legacy {
+  grid-template-columns: auto minmax(0.25rem, 1fr) auto minmax(0.25rem, 1fr) auto;
+}
+
+.flight-route-legacy .flight-airport {
+  text-align: start;
+}
+
 .flight-segment {
   display: contents;
 }
@@ -72,8 +80,7 @@
   padding: 0.1rem 0.35rem;
 }
 
-.primary-button.map-action,
-.itinerary-detail .primary-button {
+.primary-button.map-action {
   text-decoration: none;
 }
 

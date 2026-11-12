@@ -3,7 +3,7 @@ import { Icon } from "../../components/Icon";
 import heroImage from "../../../dist/assets/hero-winter-pine.jpg";
 import { formatDepartureCountdown, isDeparturePending } from "./countdown";
 import type { HomeRepository } from "./homeRepository";
-import type { FactIcon, TravelFact, TripHome, WeatherState } from "./types";
+import type { FactIcon, FlightLeg, FlightSummary, TravelFact, TripHome, WeatherState } from "./types";
 import { loadCurrentWeather, weatherDescription } from "./weatherService";
 
 const factIconOptions: Array<{ value: FactIcon; label: string }> = [
@@ -60,6 +60,51 @@ export function FlightDuration({ duration }: { duration: string }) {
 
 export function FlightLegLabel({ city, time, stop, dayOffset }: { city: string; time: string; stop: boolean; dayOffset?: number }) {
   return <span>{stop && <>{city}<br /></>}{time}{dayOffset ? <small className="flight-day-offset">＋{dayOffset} 日</small> : null}</span>;
+}
+
+export function FlightCard({ flight }: { flight: FlightSummary }) {
+  const { direction, duration, legs } = flight;
+  const date = legs[0]?.dateLabel;
+  const split = legs.length % 2 === 0
+    && legs.every((leg, index) => index % 2 !== 0 || Boolean(leg.flightNumber));
+
+  return <article className="flight-row">
+    <span className="flight-direction"><Icon name="plane" size={20} /></span>
+    <div>
+      <div className="flight-title"><strong>{direction}{date && ` (${date})`}</strong><FlightDuration duration={duration} /></div>
+      {split ? legs.map((departure, index) => index % 2 === 0 && (
+        <div key={index}>
+          {index > 0 && <p className="flight-transfer">{departure.city}轉機</p>}
+          <div className="flight-leg">
+            <strong>{departure.flightNumber}</strong>
+            <div className="flight-route">
+              <FlightAirport leg={departure} />
+              <span className="flight-line" aria-hidden="true" />
+              <FlightAirport leg={legs[index + 1]} />
+            </div>
+          </div>
+        </div>
+      )) : (
+        <div className="flight-route flight-route-legacy">
+          {legs.map((leg, index) => <div className="flight-segment" key={index}>
+            {index > 0 && <span className="flight-line" aria-hidden="true" />}
+            <div className="flight-airport">
+              <strong>{leg.airport}</strong>
+              <FlightLegLabel city={leg.city} time={leg.time} stop={index > 0 && index < legs.length - 1} dayOffset={leg.dayOffset} />
+            </div>
+          </div>)}
+        </div>
+      )}
+    </div>
+  </article>;
+}
+
+function FlightAirport({ leg }: { leg: FlightLeg }) {
+  return <div className="flight-airport">
+    <strong>{leg.city} {leg.airport}</strong>
+    <span>{leg.terminal && `${leg.terminal} · `}{leg.time}</span>
+    {leg.dayOffset ? <small className="flight-day-offset">＋{leg.dayOffset} 日</small> : null}
+  </div>;
 }
 
 export function HomePage({ repository, online }: { repository: HomeRepository; online: boolean }) {
@@ -213,25 +258,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
         <section className="card section-card" aria-labelledby="flights-title">
           <div className="section-head"><div><h2 id="flights-title">航班資訊</h2><p>各段時間依機場當地時區顯示</p></div><Icon name="plane" size={23} /></div>
           <div className="flight-list">
-            {home.flights.map((flight) => (
-              <article className="flight-row" key={flight.direction}>
-                <span className="flight-direction"><Icon name="plane" size={20} /></span>
-                <div>
-                  <div className="flight-title"><strong>{flight.direction}</strong><FlightDuration duration={flight.duration} /></div>
-                  <div className="flight-route">
-                    {flight.legs.map((leg, index) => (
-                      <div className="flight-segment" key={`${flight.direction}-${leg.airport}`}>
-                        {index > 0 && <span className="flight-line" />}
-                        <div className={`flight-airport ${index === 1 ? "flight-stop" : ""}`}>
-                          <strong>{leg.airport}</strong>
-                          <FlightLegLabel city={leg.city} time={leg.time} stop={index === 1} dayOffset={leg.dayOffset} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </article>
-            ))}
+            {home.flights.map((flight) => <FlightCard flight={flight} key={flight.direction} />)}
           </div>
         </section>
       </section>
