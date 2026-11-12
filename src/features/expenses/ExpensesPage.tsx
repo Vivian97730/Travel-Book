@@ -70,7 +70,7 @@ type ExpenseState =
   | { kind: "error"; message: string }
   | { kind: "ready"; data: ExpensesResponse };
 
-export function ExpensesPage({ repository, online, startDate, endDate }: { repository: ExpensesRepository; online: boolean; startDate: string; endDate: string }) {
+export function ExpensesPage({ repository, online }: { repository: ExpensesRepository; online: boolean }) {
   const [state, setState] = useState<ExpenseState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [editing, setEditing] = useState<{ expense: Expense | null } | null>(() => {
@@ -116,7 +116,6 @@ export function ExpensesPage({ repository, online, startDate, endDate }: { repos
       </section>
       : <ExpenseOverview data={state.data} onEdit={(expense) => setEditing({ expense })} />}
     {editing && <ExpenseDialog expense={editing.expense} repository={repository} online={online && !refreshing}
-      startDate={startDate} endDate={endDate}
       onClose={() => { setEditing(null); if (online) setAttempt((value) => value + 1); }}
       onData={(data) => setState({ kind: "ready", data })}
       onSaved={(data, message) => { setState({ kind: "ready", data }); setEditing(null); setNotice(message); }} />}

@@ -64,13 +64,28 @@ describe("rates service", () => {
     expect(provider).toHaveBeenCalledTimes(1);
   });
 
-  it("returns a nullable rate on provider failure, and skips cache for TWD and future expenses", async () => {
+  it("returns a nullable rate on provider failure and skips cache for TWD", async () => {
     const cache = { claim: vi.fn(async () => ({ claimed: true })), finish: vi.fn(async () => null) };
     const service = new RatesService(cache, async () => { throw new Error("Provider offline"); }, now);
     await expect(service.getRate("TWD", "2026-11-12")).resolves.toMatchObject({ rate: "1", snapshot: null });
-    await expect(service.getRate("EUR", "2026-11-13")).resolves.toMatchObject({ rate: null, snapshot: null });
     expect(cache.claim).not.toHaveBeenCalled();
     await expect(service.getRate("EUR", "2026-11-12")).resolves.toMatchObject({ rate: null, snapshot: null });
     expect(cache.finish).toHaveBeenCalledWith("EUR", "2026-11-12", 2, expect.any(String), null);
+  });
+
+  it("uses the latest published rate for a future expense and shares today's lookup", async () => {
+    let cached: ExchangeRateSnapshot | null = null;
+    const cache: RateCache = {
+      claim: vi.fn(async () => cached ? { snapshot: cached } : { claimed: true }),
+      finish: vi.fn(async () => cached = snapshot),
+    };
+    const provider = vi.fn(async () => ({ rate: snapshot.rate, source: snapshot.source, sourceDate: snapshot.sourceDate }));
+    const service = new RatesService(cache, provider, now);
+    await expect(service.getRate("EUR", "2027-02-05")).resolves.toEqual({
+      currency: "EUR", date: "2027-02-05", rate: snapshot.rate, snapshot,
+    });
+    await expect(service.getRate("EUR", "2026-11-12")).resolves.toMatchObject({ snapshot });
+    expect(provider).toHaveBeenCalledExactlyOnceWith("EUR", "2026-11-12");
+    expect(cache.claim).toHaveBeenCalledWith("EUR", "2026-11-12", 2, expect.any(String));
   });
 });

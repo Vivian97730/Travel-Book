@@ -34,19 +34,19 @@ function decimalAmount(minor: number) {
   return `${digits / 100n}.${String(digits % 100n).padStart(2, "0")}`;
 }
 
-export function ExpenseDialog({ expense, repository, online, startDate, endDate, onClose, onData, onSaved }: {
+const localDate = new Intl.DateTimeFormat("sv-SE", { year: "numeric", month: "2-digit", day: "2-digit" });
+
+export function ExpenseDialog({ expense, repository, online, onClose, onData, onSaved }: {
   expense: Expense | null;
   repository: ExpensesRepository;
   online: boolean;
-  startDate: string;
-  endDate: string;
   onClose(): void;
   onData(data: ExpensesResponse): void;
   onSaved(data: ExpensesResponse, message: string): void;
 }) {
   const [restored] = useState(() => readExpenseDraft(repository));
   const [current, setCurrent] = useState(restored ? restored.current : expense);
-  const [date, setDate] = useState(restored?.date ?? (expense?.date ?? startDate));
+  const [date, setDate] = useState(() => restored?.date ?? expense?.date ?? localDate.format(new Date()));
   const [title, setTitle] = useState(restored?.title ?? (expense?.title ?? ""));
   const [category, setCategory] = useState<string>(restored?.category ?? (expense?.category ?? expenseCategories[0]));
   const [currency, setCurrency] = useState<string>(restored?.currency ?? (expense?.currency ?? "TWD"));
@@ -84,12 +84,12 @@ export function ExpenseDialog({ expense, repository, online, startDate, endDate,
 
   useEffect(() => {
     if (!online || usesOriginalRate || (currency !== "EUR" && currency !== "HUF")
-      || !date || date < startDate || date > endDate) return;
+      || !date) return;
     let active = true;
     const settle = (value: string | null) => { if (active) setRate({ key: rateKey, value }); };
     repository.getRate(currency, date).then(settle, () => settle(null));
     return () => { active = false; };
-  }, [currency, date, endDate, online, rateKey, repository, startDate, usesOriginalRate]);
+  }, [currency, date, online, rateKey, repository, usesOriginalRate]);
 
   const amountMinor = parseExpenseAmountMinor(amount);
   const previewRate = currency === "TWD" ? "1" : usesOriginalRate ? current.snapshotRate
@@ -166,7 +166,7 @@ export function ExpenseDialog({ expense, repository, online, startDate, endDate,
       <header className="dialog-head"><h2 id="expense-dialog-title">{expense ? "修改支出" : "新增支出"}</h2>
         <button className="icon-button" type="button" aria-label="關閉" disabled={busy} onClick={close}><Icon name="close" size={20} /></button></header>
       <div className="field-group"><label htmlFor="expense-date">日期</label>
-        <input ref={expense ? undefined : initialFocus} className="field" id="expense-date" type="date" min={startDate} max={endDate}
+        <input ref={expense ? undefined : initialFocus} className="field" id="expense-date" type="date"
           value={date} onChange={(event) => setDate(event.target.value)} disabled={!!pending} required /></div>
       <div className="field-group"><label htmlFor="expense-name">名稱</label>
         <input ref={expense ? initialFocus : undefined} className="field" id="expense-name" placeholder="例如：午餐" maxLength={50}

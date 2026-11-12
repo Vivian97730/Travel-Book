@@ -31,7 +31,10 @@ export class RatesService {
 
   async getRate(currency: ExpenseCurrency, date: string) {
     if (currency === "TWD") return { currency, date, rate: "1", snapshot: null };
-    const snapshot = date > taipeiDate.format(this.now()) ? null : await this.getSnapshot(currency, date);
+    const today = taipeiDate.format(this.now());
+    // Share today's lookup for future expenses without freezing their rate before that date.
+    const lookupDate = date > today ? today : date;
+    const snapshot = await this.getSnapshot(currency, lookupDate);
     return { currency, date, rate: snapshot?.rate ?? null, snapshot };
   }
 
