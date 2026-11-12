@@ -1,9 +1,9 @@
-const CACHE_NAME = "travel-book-prototype-v7";
+const CACHE_NAME = "travel-book-prototype-v9";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20261103f",
-  "./app.js?v=20261103f",
+  "./styles.css?v=20261113a",
+  "./app.js?v=20261113b",
   "./manifest.webmanifest",
   "./assets/hero-winter-pine.jpg",
   "./icons/app-icon-192.png",
