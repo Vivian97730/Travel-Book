@@ -16,6 +16,9 @@ export interface FlightLeg {
   city: string;
   time: string;
   dayOffset?: number;
+  terminal?: string;
+  flightNumber?: string;
+  dateLabel?: string;
 }
 
 export interface FlightSummary {
@@ -62,6 +65,9 @@ function validateLeg(value: unknown, path: string, issues: ValidationIssue[]): v
   requireText(value.airport, `${path}.airport`, "機場代碼", issues);
   requireText(value.city, `${path}.city`, "城市", issues);
   requireText(value.time, `${path}.time`, "顯示時間", issues);
+  if (value.terminal !== undefined) requireText(value.terminal, `${path}.terminal`, "航廈", issues);
+  if (value.flightNumber !== undefined) requireText(value.flightNumber, `${path}.flightNumber`, "航班號碼", issues);
+  if (value.dateLabel !== undefined) requireText(value.dateLabel, `${path}.dateLabel`, "出發日期", issues);
   if (value.dayOffset !== undefined && (!Number.isInteger(value.dayOffset) || (value.dayOffset as number) < 0)) {
     issues.push({ path: `${path}.dayOffset`, message: "跨日天數必須是非負整數。" });
   }
