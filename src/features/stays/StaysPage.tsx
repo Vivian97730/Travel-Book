@@ -29,6 +29,7 @@ export function StaysPage({ repository, online, startDate = "2027-02-05", endDat
     let active = true;
     setError(null);
     repository.getStays().then((data) => { if (active) setStays(data); }).catch((error: unknown) => {
+      if (active && !online) setStays(null);
       if (active && online) setError(typeof error === "object" && error !== null && "code" in error && error.code === "ACCESS_DENIED"
         ? "私人連結已失效，請重新開啟家人分享的連結。" : "目前無法讀取住宿，請稍後重試。");
     });

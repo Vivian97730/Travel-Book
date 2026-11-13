@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { parseApiError } from "../../../packages/contracts/src/errors";
+import { ApiSharedChecklistRepository } from "../../../src/features/checklists/apiSharedChecklistRepository";
+import { SharedChecklistStoreError } from "./adapters/postgres/sharedChecklistStore";
 import { ExpenseMutationError } from "./adapters/postgres/expensesStore";
 import { handleRequest, type HandlerDependencies } from "./handler";
 
@@ -30,6 +32,10 @@ const emptyExpenses = { schemaVersion: 1 as const, expenses: [], totalsMinor: { 
 function dependencies(verify = vi.fn(async () => verifiedAccess)): HandlerDependencies {
   return {
     ratesService: { getRate: vi.fn(async (currency, date) => ({ currency, date, rate: null, snapshot: null })) },
+    sharedChecklistStore: {
+      getSharedChecklist: vi.fn(async () => ({ schemaVersion: 1 as const, version: 1, items: [] })),
+      mutateSharedChecklist: vi.fn(async () => ({ schemaVersion: 1 as const, version: 1, items: [] })),
+    },
     expensesStore: {
       getExpenses: vi.fn(async () => emptyExpenses),
       mutateExpense: vi.fn(async () => emptyExpenses),
@@ -542,5 +548,94 @@ describe("expense mutations", () => {
     expect((await handleRequest(request("DELETE", { expectedVersion: 4 }), deps)).status).toBe(200);
     expect(deps.expensesStore.mutateExpense).toHaveBeenLastCalledWith(verifiedAccess.trip.id,
       { action: "delete", id, input: null, expectedVersion: 4 }, key, null);
+  });
+});
+
+describe("shared checklist API", () => {
+  const baseUrl = "https://example.test/functions/v1/travel-book-api";
+  const path = "/v1/checklists/shared";
+  const id = "c1000000-0000-4000-8000-000000000001";
+  const key = "c1000000-0000-4000-8000-000000000002";
+
+  it("verifies access for reads and writes before calling the store", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.accessStore.verify).mockResolvedValueOnce(null);
+    for (const request of [
+      new Request(baseUrl + path),
+      new Request(baseUrl + path, { method: "POST", headers: { authorization: "Bearer revoked-fixture" } }),
+    ]) {
+      const response = await handleRequest(request, deps);
+      expect(response.status).toBe(401);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+    }
+    expect(deps.sharedChecklistStore.getSharedChecklist).not.toHaveBeenCalled();
+    expect(deps.sharedChecklistStore.mutateSharedChecklist).not.toHaveBeenCalled();
+  });
+
+  it("scopes reads to the verified trip and returns only checklist DTO fields", async () => {
+    const deps = dependencies();
+    const otherTripId = "c2000000-0000-4000-8000-000000000001";
+    vi.mocked(deps.accessStore.verify).mockResolvedValueOnce({
+      ...verifiedAccess, trip: { ...verifiedAccess.trip, id: otherTripId },
+    });
+    const response = await handleRequest(new Request(baseUrl + path + "?tripId=" + verifiedAccess.trip.id, {
+      headers: { authorization: "Bearer synthetic-fixture" },
+    }), deps);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({ schemaVersion: 1, version: 1, items: [] });
+    expect(deps.sharedChecklistStore.getSharedChecklist).toHaveBeenCalledWith(otherTripId);
+  });
+
+  it("passes normalized create, toggle, edit and delete requests from the repository", async () => {
+    const deps = dependencies();
+    const repository = new ApiSharedChecklistRepository(baseUrl, "synthetic-fixture",
+      (url, init) => handleRequest(new Request(url, init), deps));
+    await expect(repository.getSharedChecklist()).resolves.toEqual({ schemaVersion: 1, version: 1, items: [] });
+    await repository.mutateSharedChecklist({ action: "create", input: { title: " 護照 " } }, key);
+    await repository.mutateSharedChecklist({ action: "update", id, input: { isDone: false }, expectedVersion: 1 }, key);
+    await repository.mutateSharedChecklist({ action: "update", id, input: { title: "備用護照", sortOrder: 0 }, expectedVersion: 2 }, key);
+    await repository.mutateSharedChecklist({ action: "delete", id, expectedVersion: 3 }, key);
+    expect(vi.mocked(deps.sharedChecklistStore.mutateSharedChecklist).mock.calls).toEqual([
+      [verifiedAccess.trip.id, { action: "create", input: { title: "護照" } }, key],
+      [verifiedAccess.trip.id, { action: "update", id, input: { isDone: false }, expectedVersion: 1 }, key],
+      [verifiedAccess.trip.id, { action: "update", id, input: { title: "備用護照", sortOrder: 0 }, expectedVersion: 2 }, key],
+      [verifiedAccess.trip.id, { action: "delete", id, expectedVersion: 3 }, key],
+    ]);
+  });
+
+  it.each([
+    ["VERSION_CONFLICT", 409],
+    ["RESOURCE_NOT_FOUND", 404],
+    ["VALIDATION_FAILED", 422],
+  ] as const)("maps %s without leaking database errors", async (code, status) => {
+    const deps = dependencies();
+    vi.mocked(deps.sharedChecklistStore.mutateSharedChecklist).mockRejectedValueOnce(new SharedChecklistStoreError(code));
+    const response = await handleRequest(new Request(baseUrl + path + "/" + id, {
+      method: "PATCH",
+      headers: { authorization: "Bearer synthetic-fixture", "idempotency-key": key },
+      body: JSON.stringify({ isDone: true, expectedVersion: 1 }),
+    }), deps);
+    expect(response.status).toBe(status);
+    expect(await response.json()).toMatchObject({ error: { code } });
+  });
+
+  it.each([
+    ["POST", "", { title: "　" }, key],
+    ["POST", "", { isDone: true }, key],
+    ["POST", "", { title: "合法名稱" }, ""],
+    ["PATCH", "/" + id, { expectedVersion: 1 }, key],
+    ["PATCH", "/" + id, { expectedVersion: 1, isDone: "false" }, key],
+    ["PATCH", "/" + id, { expectedVersion: 1, sortOrder: -1 }, key],
+    ["DELETE", "/" + id, { expectedVersion: Number.MAX_SAFE_INTEGER + 1 }, key],
+  ])("rejects malformed %s requests before persistence", async (method, suffix, body, idempotencyKey) => {
+    const deps = dependencies();
+    const response = await handleRequest(new Request(baseUrl + path + suffix, {
+      method,
+      headers: { authorization: "Bearer synthetic-fixture", "idempotency-key": idempotencyKey },
+      body: JSON.stringify(body),
+    }), deps);
+    expect(response.status).toBe(422);
+    expect(deps.sharedChecklistStore.mutateSharedChecklist).not.toHaveBeenCalled();
   });
 });

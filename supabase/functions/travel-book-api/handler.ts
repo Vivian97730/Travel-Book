@@ -1,7 +1,12 @@
+import { SharedChecklistStoreError } from "./adapters/postgres/sharedChecklistStore.ts";
 import { ExpenseMutationError } from "./adapters/postgres/expensesStore.ts";
 import { isRateRequestCurrency, isRateRequestDate } from "./modules/rates/ratesService.ts";
 import { readStayPhoto, stayPhotoIdPattern, type StayPhotosStore } from "./stayPhotos.ts";
 import {
+  checklistItemIdPattern,
+  parseSharedChecklistPatch,
+  type SharedChecklistMutation,
+  type SharedChecklistResponse,
   isRecord,
   parseExpenseInput,
   parseMutationMetadata,
@@ -49,6 +54,10 @@ export interface HomeStore {
 }
 
 export interface HandlerDependencies {
+  sharedChecklistStore: {
+    getSharedChecklist(tripId: string): Promise<SharedChecklistResponse | null>;
+    mutateSharedChecklist(tripId: string, mutation: SharedChecklistMutation, key: string): Promise<SharedChecklistResponse>;
+  };
   ratesService: { getRate(currency: ExpenseCurrency, date: string): Promise<ExchangeRateResponse> };
   expensesStore: {
     getExpenses(tripId: string): Promise<ExpensesResponse | null>;
@@ -137,6 +146,7 @@ function safeHomeStoreCode(error: unknown): "RESOURCE_NOT_FOUND" | "VERSION_CONF
 export async function handleRequest(request: Request, dependencies: HandlerDependencies): Promise<Response> {
   const url = new URL(request.url);
   const requestId = requestIdFor(request);
+  const checklistPath = /\/v1\/checklists\/shared(?:\/([^/]+))?$/.exec(url.pathname);
   const origin = request.headers.get("origin");
   const headers = corsHeaders(origin, dependencies.allowedOrigins);
   let response: Response;
@@ -245,6 +255,12 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
     } catch {
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, privateHeaders);
     }
+  } else if (checklistPath && (checklistPath[1]
+    ? request.method === "PATCH" || request.method === "DELETE"
+    : request.method === "GET" || request.method === "POST")) {
+    response = await handleSharedChecklist(request, checklistPath[1], dependencies, requestId, {
+      ...headers, "cache-control": "no-store",
+    });
   } else if ((request.method === "POST" && url.pathname.endsWith("/v1/expenses"))
     || ((request.method === "PATCH" || request.method === "DELETE") && /\/v1\/expenses\/[^/]+$/.test(url.pathname))) {
     const privateHeaders = { ...headers, "cache-control": "no-store" };
@@ -431,4 +447,55 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
     ...(upstreamStatus ? { upstreamStatus } : {}),
   });
   return response;
+}
+
+async function handleSharedChecklist(
+  request: Request, id: string | undefined, dependencies: HandlerDependencies, requestId: string, headers: HeadersInit,
+): Promise<Response> {
+  const invalid = () => apiError("VALIDATION_FAILED", "清單保存資料格式不正確。", requestId, 422, headers);
+  const missing = () => apiError("RESOURCE_NOT_FOUND", "找不到共享清單資料。", requestId, 404, headers);
+  try {
+    const token = bearerToken(request);
+    const verified = token ? await dependencies.accessStore.verify(token) : null;
+    if (!verified) return apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers);
+    const tripId = verified.trip.id;
+    if (request.method === "GET") {
+      const result = await dependencies.sharedChecklistStore.getSharedChecklist(tripId);
+      return result ? json(result, 200, headers) : missing();
+    }
+
+    const body: unknown = await request.json().catch(() => null);
+    const metadata = parseMutationMetadata({
+      expectedVersion: id === undefined ? 0 : isRecord(body) ? body.expectedVersion : null,
+      idempotencyKey: request.headers.get("idempotency-key"),
+    });
+    if (!metadata.ok) return invalid();
+    const { expectedVersion, idempotencyKey } = metadata.value;
+    if (id !== undefined && (!checklistItemIdPattern.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1)) {
+      return invalid();
+    }
+
+    let mutation: SharedChecklistMutation;
+    if (request.method === "DELETE" && id !== undefined) {
+      mutation = { action: "delete", id, expectedVersion };
+    } else {
+      const parsed = parseSharedChecklistPatch(body);
+      if (!parsed.ok) return invalid();
+      if (id === undefined) {
+        if (parsed.value.title === undefined) return invalid();
+        mutation = { action: "create", input: { ...parsed.value, title: parsed.value.title } };
+      } else {
+        mutation = { action: "update", id, input: parsed.value, expectedVersion };
+      }
+    }
+    const result = await dependencies.sharedChecklistStore.mutateSharedChecklist(tripId, mutation, idempotencyKey);
+    return json(result, mutation.action === "create" ? 201 : 200, headers);
+  } catch (error) {
+    if (error instanceof SharedChecklistStoreError) {
+      if (error.code === "VALIDATION_FAILED") return invalid();
+      if (error.code === "RESOURCE_NOT_FOUND") return missing();
+      return apiError(error.code, "資料已由其他裝置更新，請重新載入。", requestId, 409, headers);
+    }
+    return apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+  }
 }

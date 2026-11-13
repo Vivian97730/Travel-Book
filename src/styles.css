@@ -270,3 +270,46 @@ button:disabled {
 .currency-card small {
   overflow-wrap: anywhere;
 }
+
+.formal-check-list {
+  margin-top: 1rem;
+}
+
+.checklist-title-button {
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.checklist-title-button:focus-visible {
+  outline: 3px solid var(--coral);
+  outline-offset: 2px;
+}
+
+.checklist-recovery {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-block: 0.75rem;
+}
+
+.checklist-recovery p {
+  flex-basis: 100%;
+}
+
+.offline-snapshot-status {
+  margin: 0.5rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.app-shell > .offline-snapshot-status {
+  padding-inline: 1rem;
+}

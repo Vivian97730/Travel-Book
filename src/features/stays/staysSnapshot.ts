@@ -42,9 +42,9 @@ export function parseStaysSnapshot(input: unknown, tokenHash: string, now = Date
 }
 
 export class IndexedDbStaysSnapshots implements StaysSnapshots {
-  async get(tokenHash: string): Promise<StaysSnapshot | null> {
+  async get(tokenHash: string, options?: { includeExpired: boolean }): Promise<StaysSnapshot | null> {
     const value = await this.request("readonly", (store) => store.get(tokenHash));
-    return parseStaysSnapshot(value, tokenHash);
+    return parseStaysSnapshot(value, tokenHash, options?.includeExpired ? 0 : Date.now());
   }
 
   async put(snapshot: StaysSnapshot): Promise<void> {

@@ -1,3 +1,5 @@
+import { OfflineSnapshotStatus } from "../offline/OfflineSnapshotStatus";
+import type { SnapshotInfo } from "../offline/coreSnapshots";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { AccessTripSummary, ItineraryCategory, ItineraryItem, SaveTripDayItem, Stay, TripDay } from "@travel-book/contracts";
 import { Icon, type IconName } from "../../components/Icon";
@@ -58,16 +60,18 @@ function weekdayFor(date: string): string {
   return ["日", "一", "二", "三", "四", "五", "六"][new Date(`${date}T00:00:00Z`).getUTCDay()];
 }
 
-export function ItineraryPage({ repository, trip, staysRepository, online = true }: { repository: ItineraryRepository; trip: AccessTripSummary; staysRepository?: StaysRepository | null; online?: boolean }) {
+export function ItineraryPage({ repository, trip, staysRepository, online = true, readSnapshotInfo }: { readSnapshotInfo?: (date: string) => Promise<SnapshotInfo | null | undefined>; repository: ItineraryRepository; trip: AccessTripSummary; staysRepository?: StaysRepository | null; online?: boolean }) {
   const defaultDate = useMemo(
     () => chooseDefaultDate(dateInTimezone(trip.displayTimezone), trip.startDate, trip.endDate),
     [trip.displayTimezone, trip.endDate, trip.startDate],
   );
   const [selectedDate, setSelectedDate] = useState(defaultDate);
+  const readDayInfo = useMemo(() => () => readSnapshotInfo?.(selectedDate) ?? Promise.resolve(null), [readSnapshotInfo, selectedDate]);
   const [stays, setStays] = useState<Stay[]>([]);
   const [day, setDay] = useState<TripDay | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [draftVersion, setDraftVersion] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [draftItems, setDraftItems] = useState<ItineraryItem[]>([]);
   const [formItem, setFormItem] = useState<ItineraryItem | null | undefined>(undefined);
@@ -82,10 +86,6 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
     let active = true;
     setLoading(true);
     setError(null);
-    setEditing(false);
-    setDraftItems([]);
-    setFormItem(undefined);
-    setSaveFailure(null);
     repository.getDay(selectedDate).then((result) => {
       if (active) setDay(result);
     }).catch(() => {
@@ -97,7 +97,7 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [repository, selectedDate]);
+  }, [repository, selectedDate, online]);
 
   useEffect(() => {
     if (!staysRepository) return;
@@ -111,17 +111,32 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
   }, [staysRepository, online]);
 
   if (loading && !day) return <main id="main" className="screen"><p className="loading-state">正在載入每日行程⋯</p></main>;
-  if (!day || error) return <main id="main" className="screen"><section className="card section-card empty-development"><h1>每日行程</h1><p role="alert">{error}</p></section></main>;
+  if (!day || error) return <main id="main" className="screen">
+    {!online && readSnapshotInfo && <OfflineSnapshotStatus key={selectedDate} read={readDayInfo} />}
+    <ItineraryDates dates={dates} selectedDate={selectedDate} onSelectDate={selectDate} />
+    <section className="card section-card empty-development"><h1>每日行程</h1><p role="alert">{error}</p></section>
+  </main>;
 
-  const visibleDay = editing ? { ...day, items: draftItems } : day;
+  const visibleDay = editing && online ? { ...day, items: draftItems } : day;
+
+  function selectDate(date: string) {
+    if (date === selectedDate || saving) return;
+    setEditing(false);
+    setDraftItems([]);
+    setFormItem(undefined);
+    setSaveFailure(null);
+    setSelectedDate(date);
+  }
 
   function beginEditing() {
+    setDraftVersion(day!.version);
     setDraftItems(structuredClone(day!.items));
     setEditing(true);
     setSaveFailure(null);
   }
 
   async function finishEditing() {
+    if (!online || draftVersion === null) return;
     setSaving(true);
     setSaveFailure(null);
     const items: SaveTripDayItem[] = draftItems.map(({ id, title, note, category }, sortOrder) => ({
@@ -132,7 +147,7 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
       sortOrder,
     }));
     try {
-      const saved = await repository.saveDayItems(day!.date, items, day!.version);
+      const saved = await repository.saveDayItems(day!.date, items, draftVersion);
       setDay(saved);
       setDraftItems([]);
       setEditing(false);
@@ -197,6 +212,7 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
   }
 
   return <>
+    {!online && readSnapshotInfo && <OfflineSnapshotStatus key={selectedDate} read={readDayInfo} />}
     <ItineraryDayView
       day={visibleDay}
       stays={stays}
@@ -205,19 +221,19 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
       online={online}
       editing={editing}
       saving={saving}
-      onSelectDate={setSelectedDate}
+      onSelectDate={selectDate}
       onToggleEditing={editing ? finishEditing : beginEditing}
       onAddItem={() => setFormItem(null)}
       onEditItem={setFormItem}
       onDeleteItem={deleteDraftItem}
       onReorderItem={reorderDraftItem}
     />
-    {saveFailure && <ItinerarySaveRecovery
+    {online && saveFailure && <ItinerarySaveRecovery
       failure={saveFailure}
       busy={saving}
       onRecover={saveFailure.kind === "conflict" ? reloadAfterConflict : finishEditing}
     />}
-    {formItem !== undefined && <ItineraryItemFormDialog item={formItem} onCancel={() => setFormItem(undefined)} onSubmit={saveDraftItem} />}
+    {online && formItem !== undefined && <ItineraryItemFormDialog item={formItem} onCancel={() => setFormItem(undefined)} onSubmit={saveDraftItem} />}
   </>;
 }
 
@@ -287,9 +303,7 @@ export function ItineraryDayView({
   });
   return <main id="main" className="screen">
     <header className="page-heading"><div><p className="eyebrow">Daily plan</p><h1>每日行程</h1></div></header>
-    <section className="date-strip" aria-label="選擇日期">
-      {dates.map((date) => <button className="date-button" type="button" key={date} onClick={() => onSelectDate(date)} disabled={!online} aria-pressed={date === selectedDate}><span>週{weekdayFor(date)}</span><strong>{date.slice(5).replace("-", "/")}</strong></button>)}
-    </section>
+    <ItineraryDates dates={dates} selectedDate={selectedDate} onSelectDate={onSelectDate} />
     <div className="itinerary-grid">
       <section className="card map-card" data-map-provider="openstreetmap" data-map-points={mappedItems.map((item) => item.name).join("|")} aria-label={`OpenStreetMap 每日地點地圖，${mappedItems.length} 個有座標地點`}>
         <ItineraryMap key={day.date} city={day.city} locations={mappedItems} online={online} />
@@ -453,4 +467,15 @@ export function ItineraryItemFormDialog({ item, onCancel, onSubmit }: {
   }
 
   return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="itinerary-edit-title"><form className="dialog-form" onSubmit={submit}><header className="dialog-head"><h2 id="itinerary-edit-title">{item ? "修改行程" : "新增行程"}</h2><button className="icon-button" type="button" onClick={onCancel} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="itinerary-title">行程名稱</label><input className="field" id="itinerary-title" name="title" required maxLength={80} defaultValue={item?.title ?? ""} data-dialog-initial-focus /></div><div className="field-group"><label htmlFor="itinerary-note">內容</label><textarea className="field" id="itinerary-note" name="note" required maxLength={300} defaultValue={item?.note ?? ""} /></div><div className="field-group"><label htmlFor="itinerary-category">類別</label><select className="field itinerary-category-field" id="itinerary-category" name="category" defaultValue={item?.category ?? "transit"}><option value="transit">交通</option><option value="sight">景點</option><option value="food">食物</option><option value="stay">住宿</option><option value="shopping">逛街</option></select></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onCancel}>取消</button><button className="primary-button" type="submit">儲存</button></div></form></section></div>;
+}
+
+
+function ItineraryDates({ dates, selectedDate, onSelectDate }: {
+  dates: readonly string[]; selectedDate: string; onSelectDate(date: string): void;
+}) {
+  return (
+    <section className="date-strip" aria-label="選擇日期">
+      {dates.map((date) => <button className="date-button" type="button" key={date} onClick={() => onSelectDate(date)} aria-pressed={date === selectedDate}><span>週{weekdayFor(date)}</span><strong>{date.slice(5).replace("-", "/")}</strong></button>)}
+    </section>
+  );
 }
