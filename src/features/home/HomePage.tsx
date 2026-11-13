@@ -108,6 +108,7 @@ function FlightAirport({ leg }: { leg: FlightLeg }) {
 }
 
 export function HomePage({ repository, online }: { repository: HomeRepository; online: boolean }) {
+  const [loadFailed, setLoadFailed] = useState(false);
   const [home, setHome] = useState<TripHome | null>(null);
   const [facts, setFacts] = useState<TravelFact[]>([]);
   const [editing, setEditing] = useState(false);
@@ -122,13 +123,14 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
 
   useEffect(() => {
     let active = true;
+    setLoadFailed(false);
     repository.getTripHome().then((data) => {
       if (!active) return;
       setHome(data);
       setFacts(data.facts);
-    });
+    }).catch(() => { if (active) { setHome(null); setLoadFailed(true); } });
     return () => { active = false; };
-  }, [repository]);
+  }, [repository, online]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
@@ -152,7 +154,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
   const countdown = useMemo(() => formatDepartureCountdown(now), [now]);
 
   if (!home) {
-    return <main id="main" className="screen"><p className="loading-state">正在載入旅程首頁⋯</p></main>;
+    return <main id="main" className="screen"><p className="loading-state">{loadFailed ? (online ? "目前無法讀取旅程首頁。" : "此裝置沒有首頁快照。") : "正在載入旅程首頁⋯"}</p></main>;
   }
 
   function startEditing() {

@@ -1,3 +1,5 @@
+import { OfflineSnapshotStatus } from "../offline/OfflineSnapshotStatus";
+import type { SnapshotInfo } from "../offline/coreSnapshots";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Icon, type IconName } from "../../components/Icon";
 import { ApiClientError } from "../../shared/api/apiClient";
@@ -24,7 +26,8 @@ function writeFailure(error: unknown, shared: boolean): Failure {
   return { message: shared ? "目前無法確認是否已保存，請重試。" : "無法保存到此裝置，請重試。", recovery: "retry" };
 }
 
-export function ChecklistsPage({ shared, personal, online }: {
+export function ChecklistsPage({ shared, personal, online, readSnapshotInfo }: {
+  readSnapshotInfo?: () => Promise<SnapshotInfo | null | undefined>;
   shared: SharedChecklistRepository;
   personal: PersonalChecklistRepository;
   online: boolean;
@@ -37,10 +40,11 @@ export function ChecklistsPage({ shared, personal, online }: {
     setKind(next);
     requestAnimationFrame(() => document.getElementById(`checklist-tab-${next}`)?.focus());
   }
-  return <ChecklistPanel key={kind} source={source} online={online} onTab={selectTab} />;
+  return <ChecklistPanel key={kind} source={source} online={online} onTab={selectTab} readSnapshotInfo={readSnapshotInfo} />;
 }
 
-function ChecklistPanel({ source, online, onTab }: {
+function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
+  readSnapshotInfo?: () => Promise<SnapshotInfo | null | undefined>;
   source: ChecklistSource;
   online: boolean;
   onTab(kind: ChecklistSource["kind"]): void;
@@ -59,9 +63,9 @@ function ChecklistPanel({ source, online, onTab }: {
   const addButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (offline) return;
     let active = true;
     setState({ kind: "loading" });
+    setFailure(null);
     readChecklist(source).then((items) => {
       if (active) setState({ kind: "ready", items });
     }, (error: unknown) => {
@@ -157,12 +161,12 @@ function ChecklistPanel({ source, online, onTab }: {
         <p>{shared ? "修改後會同步給全家" : "你的個人清單，不與其他成員同步"}</p></div>
         <span className="sync-chip">{shared ? "全家同步" : "僅此裝置"}</span>
       </div>
-      {offline ? <p className="inline-notice" role="status">離線時無法載入必備清單，行李與待辦仍可操作。</p>
-        : state.kind === "loading" ? <p className="inline-notice" role="status">正在讀取清單…</p> : null}
-      {!editing && failure && <div className="checklist-recovery"><p role="alert">{failure.message}</p>{recovery}
+      {offline && readSnapshotInfo && <OfflineSnapshotStatus read={readSnapshotInfo} />}
+      {state.kind === "loading" ? <p className="inline-notice" role="status">正在讀取清單…</p> : null}
+      {!editing && failure && !(offline && state.kind === "error") && <div className="checklist-recovery"><p role="alert">{failure.message}</p>{recovery}
         {pending && <button className="secondary-button" type="button" disabled={offline || busy} onClick={reload}>重新載入</button>}
       </div>}
-      {!offline && state.kind === "ready" && <>
+      {state.kind === "ready" && <>
         <div className="progress-wrap" aria-live="polite">
           <div className="progress-track" aria-hidden="true"><div className="progress-bar" style={{ width: `${percent}%` }} /></div>
           <span className="progress-label" aria-label={`已完成 ${done} 項，共 ${items.length} 項`}>{done}／{items.length}</span>
@@ -176,10 +180,10 @@ function ChecklistPanel({ source, online, onTab }: {
             </button>
             <button className="check-copy checklist-title-button" type="button" aria-label={`編輯${item.title}`}
               aria-disabled={!canStart} onClick={() => { if (canStart) openEditor(item); }}><strong>{item.title}</strong></button>
-            <button className="icon-button" type="button" aria-label={`刪除${item.title}`}
+            {!offline && <button className="icon-button" type="button" aria-label={`刪除${item.title}`}
               aria-disabled={!canStart} onClick={() => { if (canStart) void save({ action: "delete", item }); }}>
               <Icon name="trash" size={17} />
-            </button>
+            </button>}
           </article>) : <p className="empty-state">清單目前是空的。</p>}
         </div>
       </>}

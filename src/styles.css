@@ -303,3 +303,13 @@ button:disabled {
 .checklist-recovery p {
   flex-basis: 100%;
 }
+
+.offline-snapshot-status {
+  margin: 0.5rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.app-shell > .offline-snapshot-status {
+  padding-inline: 1rem;
+}

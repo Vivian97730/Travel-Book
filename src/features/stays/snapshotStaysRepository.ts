@@ -5,6 +5,7 @@ import { createStaysSnapshot, type StaysSnapshots } from "./staysSnapshot";
 
 export class SnapshotStaysRepository implements StaysRepository {
   private readonly tokenHash: Promise<string>;
+  private active = true;
   private pending: Promise<unknown> = Promise.resolve();
   lastSyncedAt: string | null = null;
 
@@ -28,7 +29,7 @@ export class SnapshotStaysRepository implements StaysRepository {
     const stays = await this.source.getStays();
     const snapshot = createStaysSnapshot(await this.tokenHash, this.access, stays);
     this.lastSyncedAt = snapshot.syncedAt;
-    await this.snapshots.put(snapshot).catch(() => undefined);
+    if (this.active) await this.snapshots.put(snapshot).catch(() => undefined);
     return stays;
   }
 
@@ -42,8 +43,13 @@ export class SnapshotStaysRepository implements StaysRepository {
     });
   }
 
+  stopSaving() {
+    this.active = false;
+    return this.pending;
+  }
+
   private requireOnline() {
-    if (!this.online()) throw new Error("OFFLINE_READ_ONLY");
+    if (!this.active || !this.online()) throw new Error("OFFLINE_READ_ONLY");
   }
 
   private mutate<T>(operation: () => Promise<T>): Promise<T> {
