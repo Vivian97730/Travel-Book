@@ -7,6 +7,8 @@ import {
 import type { HomeRepository } from "./homeRepository";
 
 export class SnapshotHomeRepository implements HomeRepository {
+  private active = true;
+  private readonly writes = new Set<Promise<void>>();
   private tokenHash: Promise<string> | null = null;
 
   constructor(
@@ -37,11 +39,21 @@ export class SnapshotHomeRepository implements HomeRepository {
   }
 
   private async saveSnapshot(home: TripHome): Promise<void> {
-    await this.snapshots.put(createHomeSnapshot({
-      tokenHash: await this.getTokenHash(),
+    const tokenHash = await this.getTokenHash();
+    if (!this.active) return;
+    const write = this.snapshots.put(createHomeSnapshot({
+      tokenHash,
       access: this.access,
       home,
-    }));
+    })).catch(() => undefined);
+    this.writes.add(write);
+    await write;
+    this.writes.delete(write);
+  }
+
+  stopSaving() {
+    this.active = false;
+    return Promise.allSettled(this.writes);
   }
 
   private getTokenHash(): Promise<string> {

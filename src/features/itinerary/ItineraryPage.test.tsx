@@ -77,7 +77,7 @@ describe("itinerary page public behavior", () => {
     expect(html).toContain("開啟 Google Maps");
     expect(html).toContain('data-map-status="offline"');
     expect(html).toContain("離線時不載入街道圖磚");
-    expect(html).toMatch(/class="date-button"[^>]*disabled=""/);
+    expect(html).not.toMatch(/class="date-button"[^>]*disabled=""/);
     expect(html).toMatch(/disabled=""[^>]*aria-label="編輯城市與行程"/);
   });
 

@@ -1,3 +1,4 @@
+import { SupabaseSharedChecklistStore } from "./adapters/postgres/sharedChecklistStore.ts";
 import { SupabaseRateCache } from "./adapters/postgres/rateCache.ts";
 import { fetchOfficialRate } from "./modules/rates/officialRates.ts";
 import { RatesService } from "./modules/rates/ratesService.ts";
@@ -12,6 +13,7 @@ import { SupabaseStaysStore } from "./adapters/postgres/staysStore.ts";
 
 const config = readRuntimeConfig((name) => Deno.env.get(name));
 const dependencies = {
+  sharedChecklistStore: new SupabaseSharedChecklistStore(config.supabaseUrl, config.secretKey),
   ratesService: new RatesService(new SupabaseRateCache(config.supabaseUrl, config.secretKey), fetchOfficialRate),
   expensesStore: new SupabaseExpensesStore(config.supabaseUrl, config.secretKey),
   stayPhotosStore: new SupabaseStayPhotosStore(config.supabaseUrl, config.secretKey),

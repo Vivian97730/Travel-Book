@@ -9,7 +9,8 @@ export class ApiStaysRepository implements StaysRepository {
   constructor(private readonly baseUrl: string, private readonly token: string, private readonly fetcher: Fetcher = fetch) {}
 
   async uploadPhoto(file: Blob): Promise<{ id: string }> {
-    const response = await this.fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stay-photos`, {
+    const fetcher = this.fetcher;
+    const response = await fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stay-photos`, {
       method: "POST", headers: { authorization: `Bearer ${this.token}`, "content-type": "image/jpeg" }, body: file,
     });
     const body: unknown = await response.json().catch(() => null);
@@ -20,7 +21,8 @@ export class ApiStaysRepository implements StaysRepository {
   }
 
   async readPhoto(id: string): Promise<Blob> {
-    const response = await this.fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stay-photos/${encodeURIComponent(id)}`, {
+    const fetcher = this.fetcher;
+    const response = await fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stay-photos/${encodeURIComponent(id)}`, {
       headers: { authorization: `Bearer ${this.token}` }, cache: "no-store",
     });
     if (!response.ok) throw new Error("照片讀取失敗。");
@@ -55,7 +57,8 @@ export class ApiStaysRepository implements StaysRepository {
     this.pendingKeys.set(signature, key);
     let response: Response;
     try {
-      response = await this.fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stays${id ? `/${encodeURIComponent(id)}` : ""}`, {
+      const fetcher = this.fetcher;
+      response = await fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stays${id ? `/${encodeURIComponent(id)}` : ""}`, {
         method, headers: { authorization: `Bearer ${this.token}`, "content-type": "application/json",
           "idempotency-key": key, "x-request-id": requestId }, body,
       });
@@ -85,7 +88,8 @@ export class ApiStaysRepository implements StaysRepository {
     const requestId = crypto.randomUUID();
     let response: Response;
     try {
-      response = await this.fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stays`, {
+      const fetcher = this.fetcher;
+      response = await fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stays`, {
         headers: { authorization: `Bearer ${this.token}`, "x-request-id": requestId },
       });
     } catch {

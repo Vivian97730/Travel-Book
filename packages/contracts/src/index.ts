@@ -6,3 +6,4 @@ export * from "./itinerary.ts";
 export * from "./mutation.ts";
 export * from "./validation.ts";
 export * from "./stays.ts";
+export * from "./sharedChecklist.ts";

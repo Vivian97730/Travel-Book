@@ -1,12 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { captureAccessToken, createAccessTokenStore } from "./app/accessSession";
 import { hashForRoute, parseAppHash, type Route } from "./app/routing";
 import { Icon, type IconName } from "./components/Icon";
+import { ApiSharedChecklistRepository } from "./features/checklists/apiSharedChecklistRepository";
+import { ChecklistsPage } from "./features/checklists/ChecklistsPage";
+import { IndexedDbPersonalChecklistRepository } from "./features/checklists/indexedDbPersonalChecklistRepository";
 import { ApiExpensesRepository } from "./features/expenses/apiExpensesRepository";
 import { ExpensesPage } from "./features/expenses/ExpensesPage";
 import { ApiHomeRepository } from "./features/home/apiHomeRepository";
 import { HomePage } from "./features/home/HomePage";
 import { SnapshotHomeRepository } from "./features/home/snapshotHomeRepository";
+import { CoreSnapshots } from "./features/offline/coreSnapshots";
+import { OfflineSnapshotStatus } from "./features/offline/OfflineSnapshotStatus";
+import { snapshotRepositories } from "./features/offline/snapshotRepositories";
+import { buildDateWindow } from "./features/itinerary/dateWindow";
 import { ApiItineraryRepository } from "./features/itinerary/apiItineraryRepository";
 import { ItineraryPage } from "./features/itinerary/ItineraryPage";
 import {
@@ -73,19 +80,40 @@ export default function App() {
           homeSnapshots,
           accessToken,
           verifiedAccess,
-          () => online,
+          () => navigator.onLine,
         )
       : null,
-    [accessToken, apiBaseUrl, homeSnapshots, online, verifiedAccess],
+    [accessToken, apiBaseUrl, homeSnapshots, verifiedAccess],
   );
+  const personalChecklistRepository = useMemo(() => new IndexedDbPersonalChecklistRepository(), []);
+  const coreSnapshots = useMemo(() => new CoreSnapshots(), []);
+  const tokenHash = useMemo(() => accessToken ? hashAccessToken(accessToken) : null, [accessToken]);
+  const core = useMemo(() => apiBaseUrl && accessToken && tokenHash ? snapshotRepositories(
+    new ApiItineraryRepository(apiBaseUrl, accessToken),
+    new ApiSharedChecklistRepository(apiBaseUrl, accessToken), coreSnapshots, tokenHash, () => navigator.onLine,
+  ) : null, [accessToken, apiBaseUrl, coreSnapshots, tokenHash]);
+  const itineraryRepository = core?.itineraryRepository;
+  const sharedChecklistRepository = core?.checklistRepository;
+  const readChecklistInfo = useMemo(() => async () => tokenHash
+    ? coreSnapshots.get(await tokenHash, "checklist") : null, [coreSnapshots, tokenHash]);
+  const readDayInfo = useMemo(() => async (date: string) => tokenHash
+    ? coreSnapshots.get(await tokenHash, "day:" + date) : null, [coreSnapshots, tokenHash]);
+  const readPageInfo = useMemo(() => async () => {
+    if (!tokenHash) return null;
+    const hash = await tokenHash;
+    return route === "home" ? homeSnapshots.get(hash) : staysSnapshots.get(hash, { includeExpired: true });
+  }, [homeSnapshots, route, staysSnapshots, tokenHash]);
   const expensesRepository = useMemo(
     () => apiBaseUrl && accessToken ? new ApiExpensesRepository(apiBaseUrl, accessToken) : null,
     [accessToken, apiBaseUrl],
   );
-  const itineraryRepository = useMemo(
-    () => apiBaseUrl && accessToken ? new ApiItineraryRepository(apiBaseUrl, accessToken) : null,
-    [accessToken, apiBaseUrl],
-  );
+  const currentSnapshotRepositories = useRef({ homeRepository, staysRepository });
+  useEffect(() => {
+    const previous = currentSnapshotRepositories.current;
+    if (previous.homeRepository !== homeRepository) void previous.homeRepository?.stopSaving();
+    if (previous.staysRepository !== staysRepository) void previous.staysRepository?.stopSaving();
+    currentSnapshotRepositories.current = { homeRepository, staysRepository };
+  }, [homeRepository, staysRepository]);
 
   useEffect(() => {
     let active = true;
@@ -102,9 +130,10 @@ export default function App() {
       Promise.all([
         getHomeSnapshotForToken(homeSnapshots, accessToken).catch(() => null),
         hashAccessToken(accessToken).then((hash) => staysSnapshots.get(hash)).catch(() => null),
-      ]).then(([home, stays]) => {
+        tokenHash?.then((hash) => coreSnapshots.access(hash)).catch(() => null),
+      ]).then(([home, stays, access]) => {
           if (!active) return;
-          setVerifiedAccess(home?.access ?? stays?.access ?? null);
+          setVerifiedAccess(access ?? home?.access ?? stays?.access ?? null);
           setAccessState("offline");
         })
         .catch(() => {
@@ -118,13 +147,18 @@ export default function App() {
     setAccessState("checking");
     new ApiClient(apiBaseUrl).verifyAccess(accessToken).then((verified) => {
       if (active) {
+        void core?.rememberAccess(verified);
         setVerifiedAccess(verified);
         setAccessState("ready");
       }
     }).catch(async (error: unknown) => {
       if (!active) return;
       if (error instanceof ApiClientError && error.code === "ACCESS_DENIED") {
+        const snapshots = currentSnapshotRepositories.current;
+        await Promise.allSettled([snapshots.homeRepository?.stopSaving(), snapshots.staysRepository?.stopSaving()]);
+        if (!active) return;
         await Promise.allSettled([
+          core?.revoke(),
           deleteHomeSnapshotForToken(homeSnapshots, accessToken),
           hashAccessToken(accessToken).then((hash) => staysSnapshots.delete(hash)),
         ]);
@@ -138,7 +172,7 @@ export default function App() {
       }
     });
     return () => { active = false; };
-  }, [accessStore, accessToken, apiBaseUrl, homeSnapshots, staysSnapshots, online]);
+  }, [accessStore, accessToken, apiBaseUrl, core, coreSnapshots, homeSnapshots, staysSnapshots, online, tokenHash]);
 
   useEffect(() => {
     const updateRoute = () => {
@@ -168,6 +202,22 @@ export default function App() {
     };
   }, [accessStore]);
 
+  useEffect(() => {
+    if (!online || accessState !== "ready" || !verifiedAccess || !core || !homeRepository || !staysRepository) return;
+    let active = true;
+    const { startDate, endDate } = verifiedAccess.trip;
+    void Promise.allSettled([
+      homeRepository.getTripHome(), staysRepository.getStays(), core.checklistRepository.getSharedChecklist(),
+      (async () => {
+        for (const date of buildDateWindow(startDate, endDate)) {
+          if (!active || !navigator.onLine) break;
+          await core.itineraryRepository.getDay(date).catch(() => undefined);
+        }
+      })(),
+    ]);
+    return () => { active = false; };
+  }, [accessState, core, homeRepository, online, staysRepository, verifiedAccess]);
+
   function navigate(next: Route) {
     window.location.hash = hashForRoute(next);
   }
@@ -178,7 +228,8 @@ export default function App() {
 
   return <div className="app-shell">
     <header className="topbar"><button className="brand brand-button" type="button" onClick={() => navigate("itinerary")}><span className="brand-mark">旅</span><span>Travel Book</span></button><div className="topbar-side"><span className="sync-label">{online ? "首頁功能開發版" : "離線唯讀"}</span><span className="avatar" aria-label="4 位同行者">4 人</span></div></header>
-    {route === "home" ? <HomePage repository={homeRepository} online={online} /> : route === "itinerary" ? <ItineraryPage repository={itineraryRepository} staysRepository={staysRepository} trip={verifiedAccess.trip} online={online} /> : route === "stays" && staysRepository ? <StaysPage repository={staysRepository} online={online} startDate={verifiedAccess.trip.startDate} endDate={verifiedAccess.trip.endDate} /> : route === "expenses" && expensesRepository ? <ExpensesPage repository={expensesRepository} online={online} /> : <ComingSoon route={route} onHome={() => navigate("home")} />}
+    {!online && (route === "home" || route === "stays") && <OfflineSnapshotStatus read={readPageInfo} />}
+    {route === "home" ? <HomePage repository={homeRepository} online={online} /> : route === "itinerary" ? <ItineraryPage repository={itineraryRepository} staysRepository={staysRepository} trip={verifiedAccess.trip} online={online} readSnapshotInfo={readDayInfo} /> : route === "stays" && staysRepository ? <StaysPage repository={staysRepository} online={online} startDate={verifiedAccess.trip.startDate} endDate={verifiedAccess.trip.endDate} /> : route === "expenses" && expensesRepository ? <ExpensesPage repository={expensesRepository} online={online} /> : route === "lists" && sharedChecklistRepository ? <ChecklistsPage shared={sharedChecklistRepository} personal={personalChecklistRepository} online={online} readSnapshotInfo={readChecklistInfo} /> : <ComingSoon route={route} onHome={() => navigate("home")} />}
     <nav className="bottom-nav" aria-label="主要導覽">
       {routeItems.map(([value, icon, label]) => <button className="nav-button" type="button" key={value} onClick={() => navigate(value)} aria-current={route === value ? "page" : undefined}><Icon name={icon} size={20} /><span>{label}</span></button>)}
     </nav>
