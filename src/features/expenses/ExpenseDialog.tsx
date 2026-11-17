@@ -4,6 +4,7 @@ import {
   type Expense, type ExpenseMutation, type ExpensesResponse,
 } from "@travel-book/contracts";
 import { Icon } from "../../components/Icon";
+import { keepDialogTabFocus } from "../../components/keepDialogTabFocus";
 import { ApiClientError } from "../../shared/api/apiClient";
 import type { ExpensesRepository } from "./expensesRepository";
 
@@ -161,6 +162,7 @@ export function ExpenseDialog({ expense, repository, online, onClose, onData, on
   };
 
   return <dialog ref={dialog} className="dialog" aria-labelledby="expense-dialog-title"
+    onKeyDown={keepDialogTabFocus}
     onCancel={(event) => { event.preventDefault(); if (!busy) close(); }}>
     <form className="dialog-form" onSubmit={submit}>
       <header className="dialog-head"><h2 id="expense-dialog-title">{expense ? "修改支出" : "新增支出"}</h2>

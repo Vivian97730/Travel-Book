@@ -17,6 +17,7 @@ describe("API ItineraryRepository", () => {
 
     await expect(repository.getDay("2027-02-06")).resolves.toEqual(validDay);
     expect(fetcher).toHaveBeenCalledWith("https://api.example/v1/days/2027-02-06", expect.objectContaining({
+      cache: "no-store",
       headers: expect.objectContaining({ authorization: "Bearer private-token" }),
     }));
   });

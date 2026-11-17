@@ -78,6 +78,7 @@ export class ApiClient {
     try {
       const fetcher = this.fetcher;
       response = await fetcher(`${this.baseUrl}/v1/days/${encodeURIComponent(date)}`, {
+        cache: "no-store",
         headers: {
           authorization: `Bearer ${token}`,
           "x-request-id": requestId,
@@ -110,6 +111,7 @@ export class ApiClient {
     try {
       const fetcher = this.fetcher;
       response = await fetcher(`${this.baseUrl}/v1/home`, {
+        cache: "no-store",
         headers: {
           authorization: `Bearer ${token}`,
           "x-request-id": requestId,

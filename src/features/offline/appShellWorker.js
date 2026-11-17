@@ -25,7 +25,8 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (request.mode === "navigate" && url.origin === scope.origin
     && (url.pathname === scope.pathname || url.pathname === new URL(shell).pathname)) {
-    event.respondWith(fetch(request).catch(async () => (await (await caches.open(cacheName)).match(shell)) ?? Response.error()));
+    // Serve the HTML and bundled assets from the same activated build.
+    event.respondWith((async () => (await (await caches.open(cacheName)).match(shell)) ?? fetch(request))());
   } else if (urls.includes(request.url)) {
     event.respondWith((async () => (await (await caches.open(cacheName)).match(request)) ?? fetch(request))());
   }

@@ -2,6 +2,7 @@ import { OfflineSnapshotStatus } from "../offline/OfflineSnapshotStatus";
 import type { SnapshotInfo } from "../offline/coreSnapshots";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Icon, type IconName } from "../../components/Icon";
+import { keepDialogTabFocus } from "../../components/keepDialogTabFocus";
 import { ApiClientError } from "../../shared/api/apiClient";
 import { readChecklist, writeChecklist, type ChecklistItem, type ChecklistOperation, type ChecklistSource } from "./checklistSource";
 import type { PersonalChecklistRepository } from "./personalChecklistRepository";
@@ -222,6 +223,7 @@ function ChecklistEditor({ item, canSave, busy, pending, failure, offline, recov
     if (canSave) onSave(normalized);
   }
   return <dialog className="dialog" ref={dialog} aria-labelledby="checklist-editor-title"
+    onKeyDown={keepDialogTabFocus}
     onCancel={(event) => { event.preventDefault(); onClose(); }}
     onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <form className="dialog-form" onSubmit={submit}>

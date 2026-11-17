@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export function appShellPlugin() {
@@ -7,7 +7,14 @@ export function appShellPlugin() {
     name: "travel-book-app-shell",
     apply: "build",
     writeBundle({ dir }) {
-      const assets = ["index.html", ...readdirSync(join(dir, "assets")).sort().map((name) => "assets/" + name)];
+      const icons = ["app-icon-192.png", "app-icon-512.png", "apple-touch-icon.png", "favicon-32.png"]
+        .map((name) => "icons/" + name);
+      mkdirSync(join(dir, "icons"), { recursive: true });
+      for (const icon of icons) {
+        copyFileSync(new URL("./dist/" + icon, import.meta.url), join(dir, icon));
+      }
+      const assets = ["index.html", "manifest.webmanifest", ...icons,
+        ...readdirSync(join(dir, "assets")).sort().map((name) => "assets/" + name)];
       const hash = createHash("sha256");
       const worker = readFileSync(new URL("./src/features/offline/appShellWorker.js", import.meta.url), "utf8");
       for (const asset of assets) hash.update(readFileSync(join(dir, asset)));

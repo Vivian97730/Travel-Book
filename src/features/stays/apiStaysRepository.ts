@@ -90,6 +90,7 @@ export class ApiStaysRepository implements StaysRepository {
     try {
       const fetcher = this.fetcher;
       response = await fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stays`, {
+        cache: "no-store",
         headers: { authorization: `Bearer ${this.token}`, "x-request-id": requestId },
       });
     } catch {

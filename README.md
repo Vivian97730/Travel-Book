@@ -66,6 +66,12 @@ pnpm build
 
 正式建置會輸出至 `build/`，不會覆蓋 `dist/` 內的 prototype。
 
+### 正式 PWA 更新與版本回復
+
+- 本機驗證使用 `pnpm build` 和 `pnpm exec vite preview`。以 Chrome 網址列的安裝功能安裝，先連線開啟旅程並等候資料載入，再離線重開。
+- 新版 Service Worker 完成預先快取後會等待。儲存編輯內容並關閉所有 Travel Book 分頁與獨立視窗，再重新開啟即可使用新版。
+- 回復時，將同一個發布路徑上的靜態檔案整批替換為上一版完整的 `build/`，包含原本的 Worker、Manifest 與資產。裝置連線開啟以取得 Worker，關閉所有 Travel Book 分頁與獨立視窗後重開。回復適用於已含正式 Service Worker 的建置，會保留 IndexedDB 與裝置清單。
+
 ## Prototype 本機預覽
 
 在本目錄執行：
