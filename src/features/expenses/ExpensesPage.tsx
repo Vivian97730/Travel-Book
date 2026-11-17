@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { expenseCurrencies, type Expense, type ExpenseCurrency, type ExpensesResponse } from "@travel-book/contracts";
+import { expenseCurrencies, type Expense, type ExpenseCurrency, type ExpensesResponse, type ForeignExpenseCurrency } from "@travel-book/contracts";
 import { Icon, type IconName } from "../../components/Icon";
 import { ApiClientError } from "../../shared/api/apiClient";
 import { ExpenseDialog, readExpenseDraft } from "./ExpenseDialog";
-import type { ExpensesRepository } from "./expensesRepository";
+import type { ExpensesRepository, ReferenceRate } from "./expensesRepository";
 
 const currencyNames = { TWD: "台幣", EUR: "歐元", HUF: "匈牙利幣" };
+const currencySymbols = { TWD: "NT$", EUR: "€", HUF: "Ft" };
 const categoryStyle = {
   食物: ["food", "food"],
   交通: ["train", "transit"],
@@ -17,11 +18,13 @@ const categoryStyle = {
 
 const wholeNumber = new Intl.NumberFormat("zh-TW");
 const dateLabel = new Intl.DateTimeFormat("zh-TW", { month: "long", day: "numeric", weekday: "short", timeZone: "UTC" });
+const taipeiDate = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" });
+const foreignCurrencies = ["EUR", "HUF"] as const;
 
-function money(currency: ExpenseCurrency, minor: bigint) {
+function money(currency: ExpenseCurrency, minor: bigint, prefix = `${currency} `) {
   const digits = String(minor % 100n).padStart(2, "0");
   const fraction = currency === "EUR" ? digits : digits.replace(/0+$/, "");
-  return `${currency} ${wholeNumber.format(minor / 100n)}${fraction ? `.${fraction}` : ""}`;
+  return `${prefix}${wholeNumber.format(minor / 100n)}${fraction ? `.${fraction}` : ""}`;
 }
 
 function groupExpenses(expenses: Expense[]) {
@@ -114,7 +117,7 @@ export function ExpensesPage({ repository, online }: { repository: ExpensesRepos
           setAttempt((value) => value + 1);
         }}>重新載入</button>
       </section>
-      : <ExpenseOverview data={state.data} onEdit={(expense) => setEditing({ expense })} />}
+      : <ExpenseOverview data={state.data} repository={repository} onEdit={(expense) => setEditing({ expense })} />}
     {editing && <ExpenseDialog expense={editing.expense} repository={repository} online={online && !refreshing}
       onClose={() => { setEditing(null); if (online) setAttempt((value) => value + 1); }}
       onData={(data) => setState({ kind: "ready", data })}
@@ -122,20 +125,37 @@ export function ExpensesPage({ repository, online }: { repository: ExpensesRepos
   </main>;
 }
 
-function ExpenseOverview({ data, onEdit }: { data: ExpensesResponse; onEdit(expense: Expense): void }) {
-  const rates = new Map(data.rates.map((rate) => [rate.baseCurrency, rate]));
+function ExpenseOverview({ data, repository, onEdit }: {
+  data: ExpensesResponse;
+  repository: ExpensesRepository;
+  onEdit(expense: Expense): void;
+}) {
+  const today = taipeiDate.format(new Date());
+  const [rates, setRates] = useState<Partial<Record<ForeignExpenseCurrency, ReferenceRate | null>>>({});
+
+  useEffect(() => {
+    let active = true;
+    setRates({});
+    for (const currency of foreignCurrencies) {
+      const update = (rate: ReferenceRate | null) => {
+        if (active) setRates((current) => ({ ...current, [currency]: rate }));
+      };
+      void repository.getReferenceRate(currency, today).then(update, () => update(null));
+    }
+    return () => { active = false; };
+  }, [repository, today]);
   return <>
     <section className="card section-card" aria-labelledby="currency-title">
       <div className="section-head"><div><h2 id="currency-title">各幣別總覽</h2>
-        <p>{rates.size ? "已保存的參考匯率" : "目前無外幣匯率快照"}</p></div><Icon name="exchange" size={22} /></div>
+        <p>參考匯率查詢日 <time dateTime={today}>{today}</time></p></div><Icon name="exchange" size={22} /></div>
       <div className="currency-grid">
         {expenseCurrencies.map((currency) => {
-          const rate = currency === "TWD" ? undefined : rates.get(currency);
+          const rate = currency === "TWD" ? undefined : rates[currency];
           return <article key={currency} className={currency === "TWD" ? "currency-card active" : "currency-card"}>
-            <span className="currency-code">{currency}<span>{currencyNames[currency]}</span></span>
-            <strong>{money(currency, BigInt(data.totalsMinor[currency]))}</strong>
-            <small>{currency === "TWD" ? "基準幣別" : rate ? `1 ${currency} ≈ ${rate.rate} TWD` : "匯率 －"}</small>
-            {rate && <small><time dateTime={rate.sourceDate}>{rate.sourceDate}</time></small>}
+            <span className="currency-code">{currency} <span>{currencyNames[currency]}</span></span>
+            <strong>{money(currency, BigInt(data.totalsMinor[currency]), `${currencySymbols[currency]} `)}</strong>
+            <small>{currency === "TWD" ? "基準幣別" : rate ? `1:${rate.rate}` : rate === null ? "匯率 －" : "查詢中…"}</small>
+            {rate && <small><time dateTime={rate.sourceDate} aria-label={`匯率適用日 ${rate.sourceDate}`}>{rate.sourceDate}</time></small>}
           </article>;
         })}
       </div>

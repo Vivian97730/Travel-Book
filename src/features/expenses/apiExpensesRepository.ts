@@ -1,6 +1,6 @@
-import { isRecord, parseApiError, parseExpensesResponse, type ExpenseCurrency, type ExpenseMutation } from "@travel-book/contracts";
+import { isRecord, parseApiError, parseExpensesResponse, type ExpenseCurrency, type ExpenseMutation, type ForeignExpenseCurrency } from "@travel-book/contracts";
 import { ApiClientError } from "../../shared/api/apiClient";
-import type { ExpensesRepository } from "./expensesRepository";
+import type { ExpensesRepository, ReferenceRate } from "./expensesRepository";
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -12,10 +12,26 @@ export class ApiExpensesRepository implements ExpensesRepository {
   }
 
   async getRate(currency: ExpenseCurrency, date: string) {
+    return (await this.readRate(currency, date)).body.rate;
+  }
+
+  async getReferenceRate(currency: ForeignExpenseCurrency, date: string): Promise<ReferenceRate | null> {
+    const { body, requestId } = await this.readRate(currency, date);
+    if (body.rate === null) return null;
+    const sourceDate = isRecord(body.snapshot) ? body.snapshot.sourceDate : undefined;
+    if (typeof sourceDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sourceDate)
+      && sourceDate <= date && Number.isFinite(Date.parse(sourceDate))
+      && new Date(sourceDate).toISOString().slice(0, 10) === sourceDate) {
+      return { rate: body.rate, sourceDate };
+    }
+    throw new ApiClientError("EXTERNAL_SERVICE_UNAVAILABLE", "匯率日期格式不正確。", requestId);
+  }
+
+  private async readRate(currency: ExpenseCurrency, date: string) {
     const { body, requestId } = await this.request(`/v1/rates?${new URLSearchParams({ currency, date })}`);
     if (isRecord(body) && body.currency === currency && body.date === date
       && (body.rate === null || (typeof body.rate === "string" && /^\d+(?:\.\d+)?$/.test(body.rate) && /[1-9]/.test(body.rate)))) {
-      return body.rate;
+      return { body: { rate: body.rate, snapshot: body.snapshot }, requestId };
     }
     throw new ApiClientError("EXTERNAL_SERVICE_UNAVAILABLE", "匯率回應格式不正確。", requestId);
   }

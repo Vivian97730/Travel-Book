@@ -279,6 +279,10 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.currency-code > span {
+  display: inline;
+}
+
 .formal-check-list {
   margin-top: 1rem;
 }
