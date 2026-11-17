@@ -38,6 +38,7 @@ describe("stays read adapters", () => {
     const fetcher = vi.fn(async () => Response.json({ schemaVersion: 1, stays: [] }));
     expect(await new ApiStaysRepository("https://api.example/", "test-token", fetcher).getStays()).toEqual([]);
     expect(fetcher).toHaveBeenCalledWith("https://api.example/v1/stays", expect.objectContaining({
+      cache: "no-store",
       headers: expect.objectContaining({ authorization: "Bearer test-token" }),
     }));
     await expect(new ApiStaysRepository("", "", async () => Response.json({ stays: [] })).getStays()).rejects.toMatchObject({ code: "EXTERNAL_SERVICE_UNAVAILABLE" });

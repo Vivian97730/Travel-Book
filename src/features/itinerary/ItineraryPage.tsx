@@ -475,7 +475,15 @@ function ItineraryDates({ dates, selectedDate, onSelectDate }: {
 }) {
   return (
     <section className="date-strip" aria-label="選擇日期">
-      {dates.map((date) => <button className="date-button" type="button" key={date} onClick={() => onSelectDate(date)} aria-pressed={date === selectedDate}><span>週{weekdayFor(date)}</span><strong>{date.slice(5).replace("-", "/")}</strong></button>)}
+      {dates.map((date) => {
+        const weekday = `週${weekdayFor(date)}`;
+        const month = Number(date.slice(5, 7));
+        const day = date.slice(8);
+        return <button className="date-button" type="button" key={date} onClick={() => onSelectDate(date)}
+          aria-label={`${weekday}，${month} 月 ${Number(day)} 日`} aria-pressed={date === selectedDate}>
+          <span>{weekday}</span><strong>{day}</strong>
+        </button>;
+      })}
     </section>
   );
 }

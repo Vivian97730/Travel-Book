@@ -19,8 +19,10 @@ describe("itinerary page public behavior", () => {
     />);
 
     expect((html.match(/class="date-button"/g) ?? [])).toHaveLength(11);
-    expect(html).toContain("02/05");
-    expect(html).toContain("02/15");
+    expect(html).toContain("<strong>05</strong>");
+    expect(html).toContain("<strong>15</strong>");
+    expect(html).toContain('aria-label="週五，2 月 5 日"');
+    expect(html).not.toContain("<strong>02/05</strong>");
     expect(html).toContain("搭地鐵前往美泉宮");
     expect(html).toContain("維也納舊城散步");
     expect(html).toContain("Schloss Schonbrunn");

@@ -410,8 +410,12 @@ describe("travel-book-api handler", () => {
         "x-request-id": "never-log-this-token",
       },
     }), deps);
+    await handleRequest(new Request("http://localhost/never-log-this-token?token=never-log-this-token", {
+      method: "never-log-this-token",
+    }), deps);
 
     expect(deps.log).toHaveBeenCalled();
+    expect(deps.log).toHaveBeenLastCalledWith(expect.objectContaining({ method: "OTHER", status: 404 }));
     expect(JSON.stringify(vi.mocked(deps.log).mock.calls)).not.toContain("never-log-this-token");
   });
 

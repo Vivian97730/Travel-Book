@@ -441,8 +441,7 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
 
   dependencies.log({
     requestId,
-    method: request.method,
-    path: url.pathname,
+    method: /^(GET|POST|PUT|PATCH|DELETE|OPTIONS)$/.test(request.method) ? request.method : "OTHER",
     status: response.status,
     ...(upstreamStatus ? { upstreamStatus } : {}),
   });

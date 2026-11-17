@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -16,6 +14,11 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/master'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -23,6 +26,50 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test and build formal app
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          node -e '
+            const api = new URL(process.env.VITE_API_BASE_URL);
+            if (api.protocol !== "https:" || api.username || api.password ||
+                api.search || api.hash || !api.pathname.endsWith("/functions/v1/travel-book-api")) {
+              throw new Error("Set the public HTTPS travel-book-api endpoint in VITE_API_BASE_URL.");
+            }
+          ' 2>/dev/null || { echo "Set the public HTTPS travel-book-api endpoint in VITE_API_BASE_URL."; exit 1; }
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Verify release artifact
+        run: |
+          pnpm verify:prototype
+          test -f build/index.html
+          test -f build/app-shell-worker.js
+          test -f build/manifest.webmanifest
+          test -d build/assets
+          test ! -e build/src
+          test ! -e build/supabase
+          test ! -e build/tests
+          if grep -R -qE '(SUPABASE_(SERVICE_ROLE_KEY|SECRET_KEYS)|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' build; then
+            echo '正式建置包含不應公開的設定。'
+            exit 1
+          fi
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -32,7 +79,7 @@ jobs:
       - name: Upload static site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: build
 
       - name: Deploy
         id: deployment

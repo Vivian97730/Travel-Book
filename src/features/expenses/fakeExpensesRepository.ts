@@ -1,4 +1,4 @@
-import { convertExpenseToTwdMinor, expenseCurrencies, type ExpenseCurrency, type ExpenseMutation, type ExpensesResponse } from "@travel-book/contracts";
+import { convertExpenseToTwdMinor, expenseCurrencies, type ExpenseCurrency, type ExpenseMutation, type ExpensesResponse, type ForeignExpenseCurrency } from "@travel-book/contracts";
 import { ApiClientError } from "../../shared/api/apiClient";
 import type { ExpensesRepository } from "./expensesRepository";
 
@@ -15,7 +15,12 @@ export class FakeExpensesRepository implements ExpensesRepository {
   }
 
   async getRate(currency: ExpenseCurrency, date: string) {
-    return currency === "TWD" ? "1" : this.fixture.rates.find((rate) => rate.baseCurrency === currency && rate.sourceDate <= date)?.rate ?? null;
+    return currency === "TWD" ? "1" : (await this.getReferenceRate(currency, date))?.rate ?? null;
+  }
+
+  async getReferenceRate(currency: ForeignExpenseCurrency, date: string) {
+    const snapshot = this.fixture.rates.find((rate) => rate.baseCurrency === currency && rate.sourceDate <= date);
+    return snapshot ? { rate: snapshot.rate, sourceDate: snapshot.sourceDate } : null;
   }
 
   async mutateExpense(mutation: ExpenseMutation, key: string) {

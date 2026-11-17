@@ -13,7 +13,7 @@
 - 需先進入編輯模式的小知識新增、修改、移除、取消與儲存流程。
 - 小知識暫存於目前瀏覽器，資料介面已獨立；串接 Supabase 後可替換為全家共享版本。
 
-正式程式尚未取代 GitHub Pages 上的 prototype；其餘四頁會依後續功能切片逐步移植。
+正式程式包含首頁、行程、住宿、記帳與清單五頁。GitHub Pages 切換依下方發布與回復清單執行。
 
 ## 正式系統基礎
 
@@ -65,6 +65,39 @@ pnpm build
 ```
 
 正式建置會輸出至 `build/`，不會覆蓋 `dist/` 內的 prototype。
+
+### 正式 PWA 更新與版本回復
+
+- 本機驗證使用 `pnpm build` 和 `pnpm exec vite preview`。以 Chrome 網址列的安裝功能安裝，先連線開啟旅程並等候資料載入，再離線重開。
+- 新版 Service Worker 完成預先快取後會等待。儲存編輯內容並關閉所有 Travel Book 分頁與獨立視窗，再重新開啟即可使用新版。
+- 回復時，將同一個發布路徑上的靜態檔案整批替換為上一版完整的 `build/`，包含原本的 Worker、Manifest 與資產。裝置連線開啟以取得 Worker，關閉所有 Travel Book 分頁與獨立視窗後重開。回復適用於已含正式 Service Worker 的建置，會保留 IndexedDB 與裝置清單。
+
+## GitHub Pages 發布與回復清單
+
+### 切換前
+
+- [ ] 確認 Pages 來源為 GitHub Actions，並將 `github-pages` 環境限定由 `master` 部署。記錄現行成功部署的 Commit 及其 Prototype 版本。
+- [ ] 在 repository 或 `github-pages` 環境變數設定 `VITE_API_BASE_URL`，值為公開的 HTTPS Edge Function 網址。確認 API 健康檢查回傳 200、未授權請求回傳 401，以及正式 Pages 來源的 CORS 預檢成功。
+- [ ] 確認 PR 的 Validate 通過並審核發布工作流程。在隔離的靜態託管環境使用相同的 `/Travel-Book/` 路徑演練完整正式產物的發布與第一次切換回 Prototype。使用合成旅程，並分別驗證全新瀏覽器與先前安裝過 PWA 的瀏覽器。
+- [ ] 經審核後由維護者合併 PR。確認 `Deploy GitHub Pages` 成功，保留部署 Commit、執行紀錄與完整產物供回復。
+
+### 正式網址驗證
+
+- [ ] 確認 HTTPS、首頁與雜湊路由、Manifest、Service Worker、圖示及同版靜態資產可用。驗證舊 Prototype 裝置在連線開啟並關閉所有分頁與獨立視窗後可使用正式版。
+- [ ] 用合成旅程確認私人連結開啟後會清除網址中的權杖，五頁均可正常載入。試寫共享資料並重載，確認離線共用資料唯讀及裝置清單可用。驗收後清除合成旅程。
+- [ ] 從正式網址確認 CSP、`strict-origin` Referrer Policy 與 API CORS，檢查部署後 API Log 是否出現原始請求路徑或權杖。驗收紀錄只留結果。
+
+### 回復
+
+- 五頁載入或寫入失敗、出現敏感資料洩漏、或新版無法正常更新時，停止繼續發布並以 PR 回復。已有可用正式版時，發布上一版的完整 `build/`，然後依上節重驗。
+- 首次切換回 Prototype 時，以 PR 恢復原發布流程，將切換前 Commit 的完整 `dist/` 複製到獨立發布目錄。僅在該目錄加入下列 `app-shell-worker.js`，保留原 `service-worker.js`。將工作流程上傳路徑指向這份暫存產物。瀏覽器更新原正式 Worker 後會重新走網路載入，Prototype 隨後會註冊自己的 Worker。
+
+  ```js
+  self.addEventListener("install", (event) => event.waitUntil(self.skipWaiting()));
+  self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+  ```
+
+- 維護者合併回復 PR 後，確認同一網址可取得回復產物。已開啟正式版的裝置須連線、關閉分頁及獨立視窗後重開，必要時重新整理以完成 Worker 更新。確認 Prototype 導覽可用，記錄回復 Commit 與驗證結果。前端回復不還原資料庫。若涉及資料問題，另依階段 7 的備份及還原紀錄處理。
 
 ## Prototype 本機預覽
 

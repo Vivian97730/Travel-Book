@@ -46,4 +46,17 @@ describe("Expenses Repository", () => {
     data.totalsMinor.TWD = "0";
     await expect(repository.getExpenses()).resolves.toEqual(payload);
   });
+
+  it("keeps the source date when today's reference lookup returns an earlier quote", async () => {
+    const fetcher = vi.fn(async () => Response.json({
+      currency: "EUR", date: "2026-11-18", rate: "35.2",
+      snapshot: { sourceDate: "2026-11-17" },
+    }));
+    const repository = new ApiExpensesRepository("https://api.example", "fixture", fetcher);
+    await expect(repository.getReferenceRate("EUR", "2026-11-18")).resolves.toEqual({
+      rate: "35.2", sourceDate: "2026-11-17",
+    });
+    expect(fetcher).toHaveBeenCalledWith("https://api.example/v1/rates?currency=EUR&date=2026-11-18",
+      expect.objectContaining({ cache: "no-store" }));
+  });
 });

@@ -1,6 +1,14 @@
 @import "../dist/styles.css";
 @import "leaflet/dist/leaflet.css";
 
+:root {
+  --muted: #4f626e;
+}
+
+.fact-card p {
+  color: var(--muted);
+}
+
 .brand-button {
   border: 0;
   background: transparent;
@@ -271,6 +279,10 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.currency-code > span {
+  display: inline;
+}
+
 .formal-check-list {
   margin-top: 1rem;
 }
@@ -312,4 +324,30 @@ button:disabled {
 
 .app-shell > .offline-snapshot-status {
   padding-inline: 1rem;
+}
+
+/* Allow enlarged text to reflow within the viewport. */
+body {
+  min-width: 0;
+}
+
+.screen,
+.home-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 45rem) {
+  .home-grid {
+    grid-template-columns: minmax(0, 1.55fr) minmax(19rem, 0.85fr);
+  }
+}
+
+@media (max-width: 31rem) {
+  .screen {
+    overflow-wrap: anywhere;
+  }
+
+  .currency-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }

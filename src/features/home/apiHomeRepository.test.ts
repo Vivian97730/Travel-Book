@@ -32,6 +32,7 @@ describe("API HomeRepository", () => {
 
     await expect(repository.getTripHome()).resolves.toEqual(validHome);
     expect(fetcher).toHaveBeenCalledWith("https://api.example/v1/home", expect.objectContaining({
+      cache: "no-store",
       headers: expect.objectContaining({ authorization: "Bearer private-token" }),
     }));
   });
