@@ -33,7 +33,11 @@ pnpm verify:prototype
 
 ## 階段 1 私人存取
 
-正式前端以 `#/access/<token>` 接收一次性的私人連結片段，保存後立即將網址清理為 `#/itinerary`。後續請求透過 `Authorization: Bearer <token>` 呼叫 `travel-book-api`；前端不直接連接 Database，也不持有 Supabase Secret Key。
+啟動時依序使用分享連結、`localStorage`、同源 Cookie 取得權杖。驗證成功後寫入 `Secure; SameSite=Strict`、host-only、路徑限於 `/Travel-Book/` 的 Cookie，有效期 180 天；每次啟動或恢復連線驗證成功後續期。Cookie 由 JavaScript 讀寫，無法使用 `HttpOnly`，只作為安裝還原來源；API 仍逐次驗證 Bearer Token。後端明確拒絕時清除 Cookie、本機權杖及對應快照；暫時服務錯誤保留憑證。儲存遭拒絕時仍可使用此次記憶體中的線上憑證，但無法保證下次恢復。
+
+iOS／iPadOS 17.2 以上加入主畫面時會複製 Cookie，不複製 `localStorage` 或 IndexedDB，之後兩個環境不持續同步。因此須在 Safari 成功驗證後才加入主畫面；既有安裝需重新加入或另外啟用。主畫面首次開啟須連網完成驗證與快取，之後依既有快照提供離線唯讀。瀏覽器或使用者可能提前清除憑證，180 天不是授權免驗證期間，也不使 `localStorage` 自動到期。實際 iPhone 安裝、重啟及離線驗收仍待完成。
+
+正式前端以 `#/access/<token>` 接收私人連結片段，擷取後立即將網址清理為 `#/itinerary`，後端驗證成功才持久保存。後續請求透過 `Authorization: Bearer <token>` 呼叫 `travel-book-api`；前端不直接連接 Database，也不持有 Supabase Secret Key。
 
 本機串接前，複製 `.env.example` 為不提交的 `.env.local`，並將 `VITE_API_BASE_URL` 設為完整 Edge Function 網址；地圖圖磚網址與署名可用 `VITE_MAP_TILE_*` 選填設定覆寫。沒有有效私人連結、無法連線或 Edge Function 尚未設定時，正式前端不會載入共享旅程內容。
 

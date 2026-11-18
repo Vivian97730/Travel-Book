@@ -49,12 +49,15 @@ function routeFromCurrentHash(): Route {
 }
 
 export default function App() {
-  const accessStore = useMemo(() => createAccessTokenStore(window.localStorage), []);
+  const accessStore = useMemo(() => createAccessTokenStore(() => window.localStorage, {
+    read: () => document.cookie,
+    write: (value) => { document.cookie = value; },
+    path: import.meta.env.BASE_URL,
+  }), []);
   const [accessToken, setAccessToken] = useState<string | null>(() => captureAccessToken({
     hash: window.location.hash,
     pathname: window.location.pathname,
     search: window.location.search,
-    store: accessStore,
     replaceUrl: (url) => window.history.replaceState(null, "", url),
   }) ?? accessStore.get());
   const [accessState, setAccessState] = useState<AccessState>("checking");
@@ -147,6 +150,7 @@ export default function App() {
     setAccessState("checking");
     new ApiClient(apiBaseUrl).verifyAccess(accessToken).then((verified) => {
       if (active) {
+        accessStore.set(accessToken);
         void core?.rememberAccess(verified);
         setVerifiedAccess(verified);
         setAccessState("ready");
@@ -180,7 +184,6 @@ export default function App() {
         hash: window.location.hash,
         pathname: window.location.pathname,
         search: window.location.search,
-        store: accessStore,
         replaceUrl: (url) => window.history.replaceState(null, "", url),
       });
       if (captured) {
