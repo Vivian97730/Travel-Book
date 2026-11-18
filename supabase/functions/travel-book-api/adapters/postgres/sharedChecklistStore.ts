@@ -1,4 +1,4 @@
-import { isRecord, parseSharedChecklistResponse, type SharedChecklistMutation } from "../../../../../packages/contracts/src/index.ts";
+import { isRecord, parseSharedChecklistResponse, parseTripMembers, type SharedChecklistMutation } from "../../../../../packages/contracts/src/index.ts";
 
 export class SharedChecklistStoreError extends Error {
   constructor(readonly code: "VERSION_CONFLICT" | "RESOURCE_NOT_FOUND" | "VALIDATION_FAILED") { super(code); }
@@ -24,7 +24,41 @@ export class SupabaseSharedChecklistStore {
     return result;
   }
 
+  async getMembers(tripId: string) {
+    const payload = await this.rpc("get_trip_members", { p_trip_id: tripId });
+    const members = parseTripMembers(payload);
+    if (!members || members.some((member) => member.tripId !== tripId)) throw new Error("INVALID_MEMBERS");
+    return members;
+  }
+
+  forMember(memberId: string, kind: string) {
+    return {
+      getSharedChecklist: (tripId: string) => this.call("get_trip_personal_checklist", {
+        p_trip_id: tripId, p_member_id: memberId, p_kind: kind,
+      }),
+      mutateSharedChecklist: async (tripId: string, mutation: SharedChecklistMutation, key: string) => {
+        const result = await this.call("mutate_trip_personal_checklist", {
+          p_trip_id: tripId, p_member_id: memberId, p_kind: kind,
+          p_action: mutation.action, p_id: mutation.action === "create" ? null : mutation.id,
+          p_input: mutation.action === "delete" ? null : mutation.input,
+          p_expected_version: mutation.action === "create" ? 0 : mutation.expectedVersion,
+          p_idempotency_key: key,
+        });
+        if (!result) throw new SharedChecklistStoreError("RESOURCE_NOT_FOUND");
+        return result;
+      },
+    };
+  }
+
   private async call(rpc: string, body: Record<string, unknown>) {
+    const payload = await this.rpc(rpc, body);
+    if (payload === null) return null;
+    const parsed = parseSharedChecklistResponse(payload);
+    if (!parsed.ok) throw new Error("SHARED_CHECKLIST_STORE_INVALID_RESPONSE");
+    return parsed.value;
+  }
+
+  private async rpc(rpc: string, body: Record<string, unknown>) {
     const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}/rest/v1/rpc/${rpc}`, {
       method: "POST",
       headers: { apikey: this.secretKey, "content-type": "application/json" },
@@ -38,9 +72,6 @@ export class SupabaseSharedChecklistStore {
       }
       throw new Error("SHARED_CHECKLIST_STORE_UNAVAILABLE");
     }
-    if (payload === null) return null;
-    const parsed = parseSharedChecklistResponse(payload);
-    if (!parsed.ok) throw new Error("SHARED_CHECKLIST_STORE_INVALID_RESPONSE");
-    return parsed.value;
+    return payload;
   }
 }

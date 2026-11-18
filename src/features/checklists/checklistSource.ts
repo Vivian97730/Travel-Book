@@ -15,12 +15,16 @@ export type ChecklistOperation =
 export async function readChecklist(source: ChecklistSource): Promise<ChecklistItem[]> {
   return source.kind === "essentials"
     ? (await source.repository.getSharedChecklist()).items
-    : source.repository.getItems(source.kind);
+    : source.repository.forKind ? (await source.repository.forKind(source.kind).getSharedChecklist()).items
+      : source.repository.getItems(source.kind);
 }
 
 export async function writeChecklist(
   source: ChecklistSource, operation: ChecklistOperation, key: string, items: ChecklistItem[],
 ): Promise<ChecklistItem[]> {
+  if (source.kind !== "essentials" && source.repository.forKind) {
+    return writeChecklist({ kind: "essentials", repository: source.repository.forKind(source.kind) }, operation, key, items);
+  }
   if (source.kind === "essentials") {
     let mutation: SharedChecklistMutation;
     if (operation.action === "create") {

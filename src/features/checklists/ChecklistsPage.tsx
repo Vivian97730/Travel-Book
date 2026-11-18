@@ -36,12 +36,14 @@ export function ChecklistsPage({ shared, personal, online, readSnapshotInfo }: {
   const [kind, setKind] = useState<ChecklistSource["kind"]>("essentials");
   const source = useMemo<ChecklistSource>(() => kind === "essentials"
     ? { kind, repository: shared } : { kind, repository: personal }, [kind, personal, shared]);
+  const readInfo = useMemo(() => kind === "essentials" ? readSnapshotInfo
+    : () => personal.readSnapshotInfo?.(kind) ?? Promise.resolve(null), [kind, personal, readSnapshotInfo]);
   function selectTab(next: ChecklistSource["kind"]) {
     if (next === kind) return;
     setKind(next);
     requestAnimationFrame(() => document.getElementById(`checklist-tab-${next}`)?.focus());
   }
-  return <ChecklistPanel key={kind} source={source} online={online} onTab={selectTab} readSnapshotInfo={readSnapshotInfo} />;
+  return <ChecklistPanel key={kind} source={source} online={online} onTab={selectTab} readSnapshotInfo={readInfo} />;
 }
 
 function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
@@ -51,7 +53,7 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
   onTab(kind: ChecklistSource["kind"]): void;
 }) {
   const shared = source.kind === "essentials";
-  const offline = shared && !online;
+  const offline = !online;
   const label = tabs.find(([kind]) => kind === source.kind)?.[1];
   const [state, setState] = useState<ListState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -74,7 +76,7 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
       setState({ kind: "error" });
       setFailure({ message: error instanceof ApiClientError && error.code === "ACCESS_DENIED"
         ? "私人連結已失效，請向家人取得新的連結。"
-        : shared ? "目前無法讀取必備清單。" : "目前無法讀取裝置端清單。", recovery: "reload" });
+        : shared ? "目前無法讀取必備清單。" : "目前無法讀取個人清單。", recovery: "reload" });
     });
     return () => { active = false; };
   }, [attempt, offline, shared, source]);
@@ -110,7 +112,7 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
   }
 
   async function save(operation: ChecklistOperation, key: string = crypto.randomUUID()) {
-    if (!canWrite || inFlight.current || (shared && !navigator.onLine)) return;
+    if (!canWrite || inFlight.current || (!navigator.onLine)) return;
     inFlight.current = true;
     setBusy(true);
     setFailure(null);
@@ -124,7 +126,7 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
         : operation.action === "create" ? "清單項目已新增" : "清單項目已更新");
       if (operation.action === "delete") requestAnimationFrame(() => addButton.current?.focus());
     } catch (error) {
-      const result = writeFailure(error, shared);
+      const result = writeFailure(error, true);
       setFailure(result);
       setPending(result.recovery === "retry" ? { operation, key } : null);
     } finally {
@@ -159,8 +161,8 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
     </nav>
     <section className="card section-card" aria-labelledby="list-title">
       <div className="section-head"><div><h2 id="list-title">{label}</h2>
-        <p>{shared ? "修改後會同步給全家" : "你的個人清單，不與其他成員同步"}</p></div>
-        <span className="sync-chip">{shared ? "全家同步" : "僅此裝置"}</span>
+        <p>{shared ? "修改後會同步給全家" : "目前角色的個人清單，可跨裝置恢復"}</p></div>
+        <span className="sync-chip">{shared ? "全家同步" : "角色同步"}</span>
       </div>
       {offline && readSnapshotInfo && <OfflineSnapshotStatus read={readSnapshotInfo} />}
       {state.kind === "loading" ? <p className="inline-notice" role="status">正在讀取清單…</p> : null}
@@ -238,7 +240,7 @@ function ChecklistEditor({ item, canSave, busy, pending, failure, offline, recov
           aria-describedby={invalid ? "checklist-invalid" : undefined}
           onChange={(event) => { setTitle(event.target.value); setInvalid(false); }} />
         {invalid && <p id="checklist-invalid" role="alert">請輸入項目名稱。</p>}
-        {offline && <p role="status">重新連線後即可保存必備清單。</p>}
+        {offline && <p role="status">重新連線後即可保存清單。</p>}
         {failure && <p role="alert">{failure.message}</p>}
       </div>
       <div className="dialog-actions">

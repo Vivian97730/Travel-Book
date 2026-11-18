@@ -53,6 +53,10 @@ export class CoreSnapshots {
     return entry;
   }
 
+  async deleteResource(tokenHash: string, resource: string) {
+    await this.request("readwrite", (store) => store.delete([tokenHash, resource]));
+  }
+
   async delete(tokenHash: string) {
     await this.request("readwrite", (store) => store.delete(IDBKeyRange.bound([tokenHash], [tokenHash, []])));
   }

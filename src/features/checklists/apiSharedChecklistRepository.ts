@@ -5,14 +5,14 @@ import type { SharedChecklistRepository } from "./sharedChecklistRepository";
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
 export class ApiSharedChecklistRepository implements SharedChecklistRepository {
-  constructor(private readonly baseUrl: string, private readonly token: string, private readonly fetcher: Fetcher = fetch) {}
+  constructor(private readonly baseUrl: string, private readonly token: string, private readonly fetcher: Fetcher = fetch, private readonly path = "/v1/checklists/shared") {}
 
   async getSharedChecklist() {
-    return this.readChecklist(await this.request("/v1/checklists/shared"));
+    return this.readChecklist(await this.request(this.path));
   }
 
   async mutateSharedChecklist(mutation: SharedChecklistMutation, idempotencyKey: string) {
-    const path = mutation.action === "create" ? "/v1/checklists/shared" : `/v1/checklists/shared/${encodeURIComponent(mutation.id)}`;
+    const path = mutation.action === "create" ? this.path : `${this.path}/${encodeURIComponent(mutation.id)}`;
     const body = mutation.action === "create" ? mutation.input
       : mutation.action === "update" ? { ...mutation.input, expectedVersion: mutation.expectedVersion }
         : { expectedVersion: mutation.expectedVersion };

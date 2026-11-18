@@ -4,7 +4,8 @@ import { hashForRoute, parseAppHash, type Route } from "./app/routing";
 import { Icon, type IconName } from "./components/Icon";
 import { ApiSharedChecklistRepository } from "./features/checklists/apiSharedChecklistRepository";
 import { ChecklistsPage } from "./features/checklists/ChecklistsPage";
-import { IndexedDbPersonalChecklistRepository } from "./features/checklists/indexedDbPersonalChecklistRepository";
+import { MemberSession } from "./features/members/MemberSession";
+import { LegacyChecklistImport } from "./features/members/LegacyChecklistImport";
 import { ApiExpensesRepository } from "./features/expenses/apiExpensesRepository";
 import { ExpensesPage } from "./features/expenses/ExpensesPage";
 import { ApiHomeRepository } from "./features/home/apiHomeRepository";
@@ -88,7 +89,7 @@ export default function App() {
       : null,
     [accessToken, apiBaseUrl, homeSnapshots, verifiedAccess],
   );
-  const personalChecklistRepository = useMemo(() => new IndexedDbPersonalChecklistRepository(), []);
+  const [checklistRevision, setChecklistRevision] = useState(0);
   const coreSnapshots = useMemo(() => new CoreSnapshots(), []);
   const tokenHash = useMemo(() => accessToken ? hashAccessToken(accessToken) : null, [accessToken]);
   const core = useMemo(() => apiBaseUrl && accessToken && tokenHash ? snapshotRepositories(
@@ -229,14 +230,17 @@ export default function App() {
     return <AccessStatus state={accessState} online={online} />;
   }
 
-  return <div className="app-shell">
-    <header className="topbar"><button className="brand brand-button" type="button" onClick={() => navigate("itinerary")}><span className="brand-mark">旅</span><span>Travel Book</span></button><div className="topbar-side"><span className="sync-label">{online ? "首頁功能開發版" : "離線唯讀"}</span><span className="avatar" aria-label="4 位同行者">4 人</span></div></header>
+  return <MemberSession key={`${verifiedAccess.trip.id}:${accessToken}`} tripId={verifiedAccess.trip.id} token={accessToken!} baseUrl={apiBaseUrl!} online={online}>
+    {(member, personalChecklistRepository, switchMember) => <div className="app-shell">
+    <header className="topbar"><button className="brand brand-button" type="button" onClick={() => navigate("itinerary")}><span className="brand-mark">旅</span><span>Travel Book</span></button><div className="topbar-side"><span className="sync-label">{online ? "首頁功能開發版" : "離線唯讀"}</span><button className="avatar member-switch" type="button" disabled={!online} title="切換使用者" aria-label={`目前使用者：${member.displayName}，切換使用者`} onClick={switchMember}>{member.displayName}</button></div></header>
+    {route === "lists" && <LegacyChecklistImport key={member.id} member={member} repository={personalChecklistRepository} online={online} onImported={() => setChecklistRevision((value) => value + 1)} />}
     {!online && (route === "home" || route === "stays") && <OfflineSnapshotStatus read={readPageInfo} />}
-    {route === "home" ? <HomePage repository={homeRepository} online={online} /> : route === "itinerary" ? <ItineraryPage repository={itineraryRepository} staysRepository={staysRepository} trip={verifiedAccess.trip} online={online} readSnapshotInfo={readDayInfo} /> : route === "stays" && staysRepository ? <StaysPage repository={staysRepository} online={online} startDate={verifiedAccess.trip.startDate} endDate={verifiedAccess.trip.endDate} /> : route === "expenses" && expensesRepository ? <ExpensesPage repository={expensesRepository} online={online} /> : route === "lists" && sharedChecklistRepository ? <ChecklistsPage shared={sharedChecklistRepository} personal={personalChecklistRepository} online={online} readSnapshotInfo={readChecklistInfo} /> : <ComingSoon route={route} onHome={() => navigate("home")} />}
+    {route === "home" ? <HomePage repository={homeRepository} online={online} /> : route === "itinerary" ? <ItineraryPage repository={itineraryRepository} staysRepository={staysRepository} trip={verifiedAccess.trip} online={online} readSnapshotInfo={readDayInfo} /> : route === "stays" && staysRepository ? <StaysPage repository={staysRepository} online={online} startDate={verifiedAccess.trip.startDate} endDate={verifiedAccess.trip.endDate} /> : route === "expenses" && expensesRepository ? <ExpensesPage repository={expensesRepository} online={online} /> : route === "lists" && sharedChecklistRepository ? <ChecklistsPage key={`${member.id}:${checklistRevision}`} shared={sharedChecklistRepository} personal={personalChecklistRepository} online={online} readSnapshotInfo={readChecklistInfo} /> : <ComingSoon route={route} onHome={() => navigate("home")} />}
     <nav className="bottom-nav" aria-label="主要導覽">
       {routeItems.map(([value, icon, label]) => <button className="nav-button" type="button" key={value} onClick={() => navigate(value)} aria-current={route === value ? "page" : undefined}><Icon name={icon} size={20} /><span>{label}</span></button>)}
     </nav>
-  </div>;
+  </div>}
+  </MemberSession>;
 }
 
 function AccessStatus({ state, online }: { state: AccessState; online: boolean }) {
