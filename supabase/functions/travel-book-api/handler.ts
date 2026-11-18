@@ -170,7 +170,7 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
     }
   } else if ((request.method === "POST" && url.pathname.endsWith("/v1/stay-photos"))
-    || (request.method === "GET" && /\/v1\/stay-photos\/[^/]+$/.test(url.pathname))) {
+    || ((request.method === "GET" || request.method === "DELETE") && /\/v1\/stay-photos\/[^/]+$/.test(url.pathname))) {
     try {
       const token = bearerToken(request);
       const verified = token ? await dependencies.accessStore.verify(token) : null;
@@ -189,6 +189,11 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
       } else {
         const id = url.pathname.split("/").pop()!;
         if (!stayPhotoIdPattern.test(id)) response = apiError("RESOURCE_NOT_FOUND", "找不到照片。", requestId, 404, headers);
+        else if (request.method === "DELETE") {
+          if (!dependencies.stayPhotosStore.cleanup) throw new Error("STAY_PHOTO_UNAVAILABLE");
+          const removed = await dependencies.stayPhotosStore.cleanup(verified.trip.id, id);
+          response = json({ removed }, 200, { ...headers, "cache-control": "no-store" });
+        }
         else {
           const photo = await dependencies.stayPhotosStore.download(verified.trip.id, id);
           response = photo.ok
@@ -224,6 +229,11 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
             checkin: parsed.value.checkin, checkout: parsed.value.checkout, photo: parsed.value.photo,
           };
           const result = await dependencies.staysStore.mutateStay(verified.trip.id, action, id, input, metadata.value.expectedVersion, metadata.value.idempotencyKey);
+          // Cleanup is retryable maintenance; it must not turn a committed stay
+          // into a reported save failure. The transaction enqueues old photos.
+          await dependencies.stayPhotosStore?.cleanup?.(verified.trip.id).catch(() => {
+            dependencies.log({ requestId, event: "stay_photo_cleanup_failed" });
+          });
           response = json(result, action === "create" ? 201 : 200, headers);
         }
       }

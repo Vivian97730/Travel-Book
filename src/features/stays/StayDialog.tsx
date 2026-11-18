@@ -1,5 +1,6 @@
 import { StayPhoto } from "./StayPhoto";
 import { prepareStayPhoto } from "./prepareStayPhoto";
+import { saveStayPhoto, type PendingStayPhoto } from "./saveStayPhoto";
 import type { StaysRepository } from "./staysRepository";
 import { useEffect, useRef, useState } from "react";
 import { parseStayInput, type Stay, type StayInput } from "@travel-book/contracts";
@@ -20,6 +21,7 @@ export function StayDialog({ stay, online, startDate, endDate, onClose, onSave, 
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const photoInput = useRef<HTMLInputElement>(null);
+  const pendingPhoto = useRef<PendingStayPhoto | null>(null);
   const name = useRef<HTMLInputElement>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -79,16 +81,7 @@ export function StayDialog({ stay, online, startDate, endDate, onClose, onSave, 
       const parsed = parseStayInput(value);
       if (!parsed.ok) { setFailure({ conflict: false, message: parsed.issues[0].message }); return; }
       if (photoBusy) return;
-      if (!failure?.conflict) void run(async () => {
-        let photo = parsed.value.photo;
-        if (selected) {
-          if (!repository?.uploadPhoto) throw new Error("照片服務尚未開放。");
-          photo = await repository.uploadPhoto(selected);
-          setValue((current) => ({ ...current, photo }));
-          setSelected(null);
-        }
-        await onSave({ ...parsed.value, photo });
-      });
+      if (!failure?.conflict) void run(() => saveStayPhoto(parsed.value, selected, pendingPhoto, repository, onSave));
     }}>
       <header className="dialog-head"><h2 id="stay-dialog-title">{stay ? "編輯住宿" : "新增住宿"}</h2><button className="icon-button" type="button" disabled={busy || photoBusy} onClick={onClose} aria-label="關閉"><Icon name="close" size={20} /></button></header>
       {field("name", "住宿名稱", "text", 80)}

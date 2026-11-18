@@ -19,3 +19,27 @@ it("uses private trip-scoped Storage paths and fails closed on upload errors", a
   const failed = new SupabaseStayPhotosStore("https://example.test", "test-only-secret", async () => new Response(null,{status:403}));
   await expect(failed.upload("trip", "photo", new Uint8Array())).rejects.toThrow("STAY_PHOTO_UNAVAILABLE");
 });
+
+it("claims deletion before Storage removal and completes only after success", async () => {
+  const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const fetcher = vi.fn<(...args: [string, RequestInit?]) => Promise<Response>>()
+    .mockResolvedValueOnce(Response.json([id]))
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  const store = new SupabaseStayPhotosStore("https://example.test", "test-only", fetcher);
+  expect(await store.cleanup("trip", id)).toBe(true);
+  expect(fetcher.mock.calls[0][0]).toContain("rpc/claim_stay_photo_cleanup");
+  expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body))).toEqual({ prefixes: [`trip/${id}.jpg`] });
+  expect(fetcher.mock.calls[1][1]?.method).toBe("DELETE");
+  expect(fetcher.mock.calls[2][0]).toContain("rpc/complete_stay_photo_cleanup");
+});
+it("does not delete referenced photos or mark failed Storage deletions complete", async () => {
+  const referenced = vi.fn(async () => Response.json([]));
+  expect(await new SupabaseStayPhotosStore("https://example.test", "test-only", referenced).cleanup("trip")).toBe(false);
+  expect(referenced).toHaveBeenCalledTimes(1);
+  const failed = vi.fn<(...args: [string, RequestInit?]) => Promise<Response>>()
+    .mockResolvedValueOnce(Response.json(["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]))
+    .mockResolvedValueOnce(new Response(null, { status: 503 }));
+  await expect(new SupabaseStayPhotosStore("https://example.test", "test-only", failed).cleanup("trip")).rejects.toThrow("STAY_PHOTO_UNAVAILABLE");
+  expect(failed).toHaveBeenCalledTimes(2);
+});

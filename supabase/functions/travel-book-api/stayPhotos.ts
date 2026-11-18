@@ -24,6 +24,7 @@ export async function readStayPhoto(request: Request): Promise<Uint8Array | null
 export interface StayPhotosStore {
   upload(tripId: string, id: string, bytes: Uint8Array): Promise<void>;
   download(tripId: string, id: string): Promise<Response>;
+  cleanup?(tripId: string, id?: string): Promise<boolean>;
 }
 
 export class SupabaseStayPhotosStore implements StayPhotosStore {
@@ -47,5 +48,27 @@ export class SupabaseStayPhotosStore implements StayPhotosStore {
     return this.fetcher(this.url(tripId, id, true), {
       headers: { apikey: this.secretKey, authorization: `Bearer ${this.secretKey}` },
     });
+  }
+
+  async cleanup(tripId: string, id?: string): Promise<boolean> {
+    const headers = { apikey: this.secretKey, authorization: `Bearer ${this.secretKey}`, "content-type": "application/json" };
+    const claimed = await this.fetcher(`${this.baseUrl.replace(/\/$/, "")}/rest/v1/rpc/claim_stay_photo_cleanup`, {
+      method: "POST", headers, body: JSON.stringify({ p_trip_id: tripId, p_photo_id: id ?? null }),
+    });
+    const ids: unknown = await claimed.json().catch(() => null);
+    if (!claimed.ok || !Array.isArray(ids) || !ids.every((value) => typeof value === "string" && stayPhotoIdPattern.test(value))) {
+      throw new Error("STAY_PHOTO_UNAVAILABLE");
+    }
+    if (!ids.length) return false;
+    // Use Storage API, never delete storage.objects metadata directly.
+    const removed = await this.fetcher(`${this.baseUrl.replace(/\/$/, "")}/storage/v1/object/stay-photos`, {
+      method: "DELETE", headers, body: JSON.stringify({ prefixes: ids.map((value) => `${tripId}/${value}.jpg`) }),
+    });
+    if (!removed.ok) throw new Error("STAY_PHOTO_UNAVAILABLE");
+    const completed = await this.fetcher(`${this.baseUrl.replace(/\/$/, "")}/rest/v1/rpc/complete_stay_photo_cleanup`, {
+      method: "POST", headers, body: JSON.stringify({ p_trip_id: tripId, p_photo_ids: ids }),
+    });
+    if (!completed.ok) throw new Error("STAY_PHOTO_UNAVAILABLE");
+    return id ? ids.includes(id) : true;
   }
 }

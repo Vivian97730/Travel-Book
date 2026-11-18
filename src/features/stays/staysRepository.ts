@@ -3,6 +3,7 @@ import type { Stay, StayInput } from "@travel-book/contracts";
 export interface StaysRepository {
   readonly lastSyncedAt?: string | null;
   uploadPhoto?(file: Blob): Promise<{ id: string }>;
+  removePhoto?(id: string): Promise<boolean>;
   readPhoto?(id: string): Promise<Blob>;
   getStays(): Promise<Stay[]>;
   createStay(input: StayInput): Promise<Stay>;

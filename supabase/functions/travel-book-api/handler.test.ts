@@ -643,3 +643,41 @@ describe("shared checklist API", () => {
     expect(deps.sharedChecklistStore.mutateSharedChecklist).not.toHaveBeenCalled();
   });
 });
+
+it("authenticates photo cleanup, scopes it to the verified trip and protects referenced photos", async () => {
+  const deps = dependencies();
+  const cleanup = vi.fn(async () => false);
+  deps.stayPhotosStore = { upload: vi.fn(), download: vi.fn(), cleanup };
+  const url = "https://example.test/v1/stay-photos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  expect((await handleRequest(new Request(url, { method: "DELETE" }), deps)).status).toBe(401);
+  expect(cleanup).not.toHaveBeenCalled();
+  const response = await handleRequest(new Request(url, { method: "DELETE", headers: { authorization: "Bearer test-token" } }), deps);
+  expect(await response.json()).toEqual({ removed: false });
+  expect(cleanup).toHaveBeenCalledWith(verifiedAccess.trip.id, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  expect((await handleRequest(new Request("https://example.test/v1/stay-photos/invalid", { method: "DELETE", headers: { authorization: "Bearer test-token" } }), deps)).status).toBe(404);
+  expect(cleanup).toHaveBeenCalledTimes(1);
+});
+it("cleans queued old photos after a committed mutation without reporting cleanup failure as save failure", async () => {
+  const deps = dependencies();
+  const cleanup = vi.fn(async () => { throw new Error("Storage unavailable"); });
+  deps.stayPhotosStore = { upload: vi.fn(), download: vi.fn(), cleanup };
+  const response = await handleRequest(new Request("https://example.test/v1/stays/60000000-0000-4000-8000-000000000001", {
+    method: "DELETE", headers: { authorization: "Bearer test-token", "idempotency-key": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    body: JSON.stringify({ expectedVersion: 1 }),
+  }), deps);
+  expect(response.status).toBe(200);
+  expect(cleanup).toHaveBeenCalledWith(verifiedAccess.trip.id);
+  expect(deps.log).toHaveBeenCalledWith(expect.objectContaining({ event: "stay_photo_cleanup_failed" }));
+});
+it("does not run old-photo cleanup when the stay transaction is rejected", async () => {
+  const deps = dependencies();
+  const cleanup = vi.fn(async () => true);
+  deps.stayPhotosStore = { upload: vi.fn(), download: vi.fn(), cleanup };
+  deps.staysStore.mutateStay = vi.fn(async () => { throw Object.assign(new Error("STAYS_STORE_UNAVAILABLE"), { code: "VERSION_CONFLICT" }); });
+  const response = await handleRequest(new Request("https://example.test/v1/stays/60000000-0000-4000-8000-000000000001", {
+    method: "DELETE", headers: { authorization: "Bearer test-token", "idempotency-key": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    body: JSON.stringify({ expectedVersion: 1 }),
+  }), deps);
+  expect(response.status).toBe(409);
+  expect(cleanup).not.toHaveBeenCalled();
+});

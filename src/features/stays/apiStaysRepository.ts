@@ -29,6 +29,17 @@ export class ApiStaysRepository implements StaysRepository {
     return response.blob();
   }
 
+  async removePhoto(id: string): Promise<boolean> {
+    const response = await this.fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stay-photos/${encodeURIComponent(id)}`, {
+      method: "DELETE", headers: { authorization: `Bearer ${this.token}` },
+    });
+    const body: unknown = await response.json().catch(() => null);
+    if (!response.ok || typeof body !== "object" || body === null || !("removed" in body) || typeof body.removed !== "boolean") {
+      throw new Error("照片清理失敗。");
+    }
+    return body.removed;
+  }
+
   async createStay(input: StayInput): Promise<Stay> {
     const stays = await this.mutate("POST", "", input, 0);
     if (stays.length !== 1) throw new ApiClientError("EXTERNAL_SERVICE_UNAVAILABLE", "伺服器回應格式不正確。", "");

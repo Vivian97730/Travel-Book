@@ -31,3 +31,15 @@ it("keeps fallback visible before an authorized image is available and when offl
   expect(html).toContain("data-fallback");
   expect(html).not.toContain("<img");
 });
+
+it("requests authenticated cleanup and validates its reference-protection result", async () => {
+  const fetcher = vi.fn(async () => Response.json({ removed: false }));
+  const repository = new ApiStaysRepository("https://example.test", "test-token", fetcher);
+  const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  expect(await repository.removePhoto(id)).toBe(false);
+  expect(fetcher).toHaveBeenCalledWith(`https://example.test/v1/stay-photos/${id}`, expect.objectContaining({
+    method: "DELETE", headers: { authorization: "Bearer test-token" },
+  }));
+  const malformed = new ApiStaysRepository("", "test-token", async () => Response.json({ removed: "yes" }));
+  await expect(malformed.removePhoto(id)).rejects.toThrow("照片清理失敗");
+});
