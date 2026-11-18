@@ -29,6 +29,14 @@ When another database test file is added, execute it with the same `supabase db 
 
 `verify_jwt` is disabled because Travel Book does not use Supabase Auth. Shared routes must validate the high-entropy private trip token inside `travel-book-api` before accessing data.
 
+## Stay photo cleanup
+
+Apply `20261118010000_stay_photo_cleanup.sql` before deploying the updated Edge Function and frontend. The stay transaction queues replaced/removed photos; after commit the API claims unreferenced photos, deletes them through Storage, and marks cleanup complete. Claims share the stay mutation lock and fence late attachments. Referenced/shared photos are never claimed. Failed deletes remain queued and are retried after subsequent successful stay mutations (up to 20 per request); they do not turn a committed save into a failure.
+
+`DELETE /v1/stay-photos/{id}` uses the verified trip and returns `{ removed: boolean }` for failed-save compensation. Ambiguous mutation failures retain their original photo ID and idempotency key rather than deleting a possibly committed photo. The database regression is `supabase/tests/stay_photo_cleanup_test.sql` (one TAP result containing transaction assertions).
+
+There is no scheduled full-bucket collector. Interrupted uploads, abandoned ambiguous saves, revoked links, and trip-level deletion can still require an operator inventory. Do not delete `storage.objects` rows directly or remove the cleanup deletion fences. To retry queued work, use the same claim → Storage delete → completion sequence; never mark completion when Storage deletion failed.
+
 ## Hosted project connection
 
 Do not paste an access token, database password, secret key, or private trip link into source files or chat. Authenticate the CLI through its browser login, then link with the non-secret project reference:

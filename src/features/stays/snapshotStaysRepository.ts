@@ -86,4 +86,9 @@ export class SnapshotStaysRepository implements StaysRepository {
     this.requireOnline();
     return this.source.readPhoto(id);
   }
+
+  async removePhoto(id: string) {
+    this.requireOnline();
+    return this.source.removePhoto(id);
+  }
 }

@@ -28,6 +28,7 @@ it("shares the latest saved collection across reads and offline reloads", async 
     updateStay: vi.fn().mockResolvedValue(updated),
     deleteStay: vi.fn(),
     uploadPhoto: vi.fn(),
+    removePhoto: vi.fn(),
     readPhoto: vi.fn(),
   };
   const values = new Map<string, StaysSnapshot>();
@@ -46,6 +47,8 @@ it("shares the latest saved collection across reads and offline reloads", async 
   expect(reopened.lastSyncedAt).not.toBeNull();
   await expect(reopened.deleteStay(stay.id, 2)).rejects.toThrow("OFFLINE_READ_ONLY");
   await expect(reopened.readPhoto(stay.id)).rejects.toThrow("OFFLINE_READ_ONLY");
+  await expect(reopened.removePhoto(stay.id)).rejects.toThrow("OFFLINE_READ_ONLY");
+  expect(source.removePhoto).not.toHaveBeenCalled();
   const other = new SnapshotStaysRepository(source, snapshots, "other-token", access, () => online);
   await expect(other.getStays()).rejects.toThrow("OFFLINE_SNAPSHOT_UNAVAILABLE");
   expect(source.getStays).toHaveBeenCalledTimes(2);
