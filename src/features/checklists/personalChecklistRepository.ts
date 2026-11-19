@@ -9,6 +9,8 @@ export interface PersonalChecklistItem {
 export type PersonalChecklistPatch = Partial<Pick<PersonalChecklistItem, "title" | "isDone">>;
 
 export interface PersonalChecklistRepository {
+  readSnapshotInfo?(kind: PersonalChecklistKind): Promise<import("../offline/coreSnapshots").SnapshotInfo | null | undefined>;
+  forKind?(kind: PersonalChecklistKind): import("./sharedChecklistRepository").SharedChecklistRepository;
   getItems(kind: PersonalChecklistKind): Promise<PersonalChecklistItem[]>;
   addItem(kind: PersonalChecklistKind, title: string): Promise<PersonalChecklistItem>;
   updateItem(kind: PersonalChecklistKind, id: number, patch: PersonalChecklistPatch): Promise<PersonalChecklistItem>;

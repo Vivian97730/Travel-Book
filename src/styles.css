@@ -351,3 +351,7 @@ body {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.member-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+.member-option { display: flex; align-items: center; justify-content: flex-start; gap: 12px; padding: 16px; }
+.member-switch { border: 0; cursor: pointer; font: inherit; white-space: nowrap; }

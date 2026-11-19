@@ -13,6 +13,7 @@ import { SupabaseStaysStore } from "./adapters/postgres/staysStore.ts";
 
 const config = readRuntimeConfig((name) => Deno.env.get(name));
 const dependencies = {
+  memberStore: new SupabaseSharedChecklistStore(config.supabaseUrl, config.secretKey),
   sharedChecklistStore: new SupabaseSharedChecklistStore(config.supabaseUrl, config.secretKey),
   ratesService: new RatesService(new SupabaseRateCache(config.supabaseUrl, config.secretKey), fetchOfficialRate),
   expensesStore: new SupabaseExpensesStore(config.supabaseUrl, config.secretKey),

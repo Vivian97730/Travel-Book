@@ -681,3 +681,46 @@ it("does not run old-photo cleanup when the stay transaction is rejected", async
   expect(response.status).toBe(409);
   expect(cleanup).not.toHaveBeenCalled();
 });
+
+describe("family member checklist authorization", () => {
+  const memberId = "22222222-2222-4222-8222-222222222222";
+  function setup() {
+    const deps = dependencies();
+    const store = { getSharedChecklist: vi.fn(async () => ({ schemaVersion: 1 as const, version: 1, items: [] })),
+      mutateSharedChecklist: vi.fn(async () => ({ schemaVersion: 1 as const, version: 2, items: [] })) };
+    deps.memberStore = { getMembers: vi.fn(async () => [{ id: memberId, tripId: verifiedAccess.trip.id,
+      roleKey: "mother" as const, displayName: "媽媽" }]), forMember: vi.fn(() => store) };
+    return { deps, store };
+  }
+  it("never queries a member or list before validating the trip token", async () => {
+    const { deps, store } = setup();
+    deps.accessStore.verify = vi.fn(async () => null);
+    for (const path of ["/v1/members", `/v1/members/${memberId}/checklists/luggage`]) {
+      expect((await handleRequest(new Request(`https://api.test${path}`), deps)).status).toBe(401);
+    }
+    expect(deps.memberStore!.getMembers).not.toHaveBeenCalled();
+    expect(store.getSharedChecklist).not.toHaveBeenCalled();
+  });
+  it("rejects another trip's member before reading or mutating personal data", async () => {
+    const { deps, store } = setup();
+    const path = "https://api.test/v1/members/33333333-3333-4333-8333-333333333333/checklists/todos";
+    for (const method of ["GET", "POST"]) {
+      expect((await handleRequest(new Request(path, { method, headers: { authorization: "Bearer synthetic" } }), deps)).status).toBe(404);
+    }
+    expect(store.getSharedChecklist).not.toHaveBeenCalled();
+    expect(store.mutateSharedChecklist).not.toHaveBeenCalled();
+  });
+  it("derives the trip exclusively from verified access and preserves version conflicts", async () => {
+    const { deps, store } = setup();
+    const path = `https://api.test/v1/members/${memberId}/checklists/luggage`;
+    expect((await handleRequest(new Request(path, { headers: { authorization: "Bearer synthetic" } }), deps)).status).toBe(200);
+    expect(deps.memberStore!.getMembers).toHaveBeenCalledWith(verifiedAccess.trip.id);
+    expect(deps.memberStore!.forMember).toHaveBeenCalledWith(memberId, "luggage");
+    expect(store.getSharedChecklist).toHaveBeenCalledWith(verifiedAccess.trip.id);
+    store.mutateSharedChecklist.mockRejectedValue(new SharedChecklistStoreError("VERSION_CONFLICT"));
+    const response = await handleRequest(new Request(`${path}/${memberId}`, { method: "PATCH", headers: {
+      authorization: "Bearer synthetic", "content-type": "application/json", "idempotency-key": crypto.randomUUID(),
+    }, body: JSON.stringify({ isDone: true, expectedVersion: 1 }) }), deps);
+    expect(response.status).toBe(409);
+  });
+});

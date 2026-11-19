@@ -4,6 +4,7 @@ import { isRateRequestCurrency, isRateRequestDate } from "./modules/rates/ratesS
 import { readStayPhoto, stayPhotoIdPattern, type StayPhotosStore } from "./stayPhotos.ts";
 import {
   checklistItemIdPattern,
+  type TripMember,
   parseSharedChecklistPatch,
   type SharedChecklistMutation,
   type SharedChecklistResponse,
@@ -54,6 +55,10 @@ export interface HomeStore {
 }
 
 export interface HandlerDependencies {
+  memberStore?: {
+    getMembers(tripId: string): Promise<TripMember[]>;
+    forMember(memberId: string, kind: string): HandlerDependencies["sharedChecklistStore"];
+  };
   sharedChecklistStore: {
     getSharedChecklist(tripId: string): Promise<SharedChecklistResponse | null>;
     mutateSharedChecklist(tripId: string, mutation: SharedChecklistMutation, key: string): Promise<SharedChecklistResponse>;
@@ -146,6 +151,8 @@ function safeHomeStoreCode(error: unknown): "RESOURCE_NOT_FOUND" | "VERSION_CONF
 export async function handleRequest(request: Request, dependencies: HandlerDependencies): Promise<Response> {
   const url = new URL(request.url);
   const requestId = requestIdFor(request);
+  const memberPath = /\/v1\/members\/([^/]+)\/checklists\/(luggage|todos)(?:\/([^/]+))?$/.exec(url.pathname);
+  const membersPath = url.pathname.endsWith("/v1/members");
   const checklistPath = /\/v1\/checklists\/shared(?:\/([^/]+))?$/.exec(url.pathname);
   const origin = request.headers.get("origin");
   const headers = corsHeaders(origin, dependencies.allowedOrigins);
@@ -265,6 +272,19 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
     } catch {
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, privateHeaders);
     }
+  } else if (membersPath && request.method === "GET") {
+    const privateHeaders = { ...headers, "cache-control": "no-store" };
+    try {
+      const token = bearerToken(request);
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      if (!verified) response = apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, privateHeaders);
+      else if (!dependencies.memberStore) response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用。", requestId, 503, privateHeaders);
+      else response = json(await dependencies.memberStore.getMembers(verified.trip.id), 200, privateHeaders);
+    } catch {
+      response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用。", requestId, 503, privateHeaders);
+    }
+  } else if (memberPath && (memberPath[3] ? ["PATCH", "DELETE"].includes(request.method) : ["GET", "POST"].includes(request.method))) {
+    response = await handleSharedChecklist(request, memberPath[3], dependencies, requestId, { ...headers, "cache-control": "no-store" }, { id: memberPath[1], kind: memberPath[2] });
   } else if (checklistPath && (checklistPath[1]
     ? request.method === "PATCH" || request.method === "DELETE"
     : request.method === "GET" || request.method === "POST")) {
@@ -459,7 +479,7 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
 }
 
 async function handleSharedChecklist(
-  request: Request, id: string | undefined, dependencies: HandlerDependencies, requestId: string, headers: HeadersInit,
+  request: Request, id: string | undefined, dependencies: HandlerDependencies, requestId: string, headers: HeadersInit, member?: { id: string; kind: string },
 ): Promise<Response> {
   const invalid = () => apiError("VALIDATION_FAILED", "清單保存資料格式不正確。", requestId, 422, headers);
   const missing = () => apiError("RESOURCE_NOT_FOUND", "找不到共享清單資料。", requestId, 404, headers);
@@ -468,8 +488,16 @@ async function handleSharedChecklist(
     const verified = token ? await dependencies.accessStore.verify(token) : null;
     if (!verified) return apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, headers);
     const tripId = verified.trip.id;
+    let store = dependencies.sharedChecklistStore;
+    if (member) {
+      if (!checklistItemIdPattern.test(member.id)) return invalid();
+      if (!dependencies.memberStore) throw new Error("MEMBERS_UNAVAILABLE");
+      const members = await dependencies.memberStore.getMembers(tripId);
+      if (!members.some((entry) => entry.id === member.id && entry.tripId === tripId)) return missing();
+      store = dependencies.memberStore.forMember(member.id, member.kind);
+    }
     if (request.method === "GET") {
-      const result = await dependencies.sharedChecklistStore.getSharedChecklist(tripId);
+      const result = await store.getSharedChecklist(tripId);
       return result ? json(result, 200, headers) : missing();
     }
 
@@ -497,7 +525,7 @@ async function handleSharedChecklist(
         mutation = { action: "update", id, input: parsed.value, expectedVersion };
       }
     }
-    const result = await dependencies.sharedChecklistStore.mutateSharedChecklist(tripId, mutation, idempotencyKey);
+    const result = await store.mutateSharedChecklist(tripId, mutation, idempotencyKey);
     return json(result, mutation.action === "create" ? 201 : 200, headers);
   } catch (error) {
     if (error instanceof SharedChecklistStoreError) {
