@@ -105,8 +105,7 @@ export function ExpensesPage({ repository, online }: { repository: ExpensesRepos
 
   return <main id="main" className="screen">
     <header className="page-heading"><div><p className="eyebrow">Expenses</p><h1>記帳</h1></div>
-      {online && state.kind === "ready" && <button className="primary-button" type="button" aria-label="新增支出"
-        onClick={() => setEditing({ expense: null })}><Icon name="plus" size={18} /><span>新增支出</span></button>}</header>
+    </header>
     {notice && <div className="toast-region" role="status"><div className="toast">{notice}</div></div>}
     {!online ? <section className="card section-card" role="status">離線時無法載入支出，請連線後再試。</section>
       : state.kind === "loading" ? <p className="loading-state" role="status">正在讀取支出…</p>
@@ -117,7 +116,7 @@ export function ExpensesPage({ repository, online }: { repository: ExpensesRepos
           setAttempt((value) => value + 1);
         }}>重新載入</button>
       </section>
-      : <ExpenseOverview data={state.data} repository={repository} onEdit={(expense) => setEditing({ expense })} />}
+      : <ExpenseOverview data={state.data} repository={repository} onEdit={(expense) => setEditing({ expense })} onAdd={() => setEditing({ expense: null })} />}
     {editing && <ExpenseDialog expense={editing.expense} repository={repository} online={online && !refreshing}
       onClose={() => { setEditing(null); if (online) setAttempt((value) => value + 1); }}
       onData={(data) => setState({ kind: "ready", data })}
@@ -125,10 +124,11 @@ export function ExpensesPage({ repository, online }: { repository: ExpensesRepos
   </main>;
 }
 
-function ExpenseOverview({ data, repository, onEdit }: {
+function ExpenseOverview({ data, repository, onEdit, onAdd }: {
   data: ExpensesResponse;
   repository: ExpensesRepository;
   onEdit(expense: Expense): void;
+  onAdd(): void;
 }) {
   const today = taipeiDate.format(new Date());
   const [rates, setRates] = useState<Partial<Record<ForeignExpenseCurrency, ReferenceRate | null>>>({});
@@ -162,7 +162,9 @@ function ExpenseOverview({ data, repository, onEdit }: {
       <p className="rate-note"><Icon name="info" size={15} />台幣參考金額以各筆保存的匯率換算。無匯率時顯示「－」。</p>
     </section>
     <section className="card section-card" aria-labelledby="expense-title">
-      <div className="section-head"><div><h2 id="expense-title">支出明細</h2><p>{data.expenses.length} 筆紀錄・依日期整理</p></div></div>
+      <div className="section-head"><div><h2 id="expense-title">支出明細</h2><p>{data.expenses.length} 筆紀錄・依日期整理</p></div>
+        <button className="primary-button section-add-button" type="button" aria-label="新增支出" onClick={onAdd}><Icon name="plus" size={18} /></button>
+      </div>
       <div className="expense-list">
         {data.expenses.length ? groupExpenses(data.expenses).map(([date, expenses]) =>
           <ExpenseGroup key={date} date={date} expenses={expenses} onEdit={onEdit} />) : <p className="empty-state">還沒有支出。</p>}

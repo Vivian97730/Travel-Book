@@ -1,3 +1,4 @@
+import { newChecklistTitle } from "./newChecklistTitle";
 import { OfflineSnapshotStatus } from "../offline/OfflineSnapshotStatus";
 import type { SnapshotInfo } from "../offline/coreSnapshots";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -62,6 +63,7 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
   const [failure, setFailure] = useState<Failure | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [notice, setNotice] = useState("");
+  const [newTitle, setNewTitle] = useState("");
   const inFlight = useRef(false);
   const addButton = useRef<HTMLButtonElement>(null);
 
@@ -122,6 +124,7 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
       setState({ kind: "ready", items: updated });
       setPending(null);
       setEditing(null);
+      if (operation.action === "create") setNewTitle("");
       if (operation.action !== "toggle") setNotice(operation.action === "delete" ? "已從清單移除"
         : operation.action === "create" ? "清單項目已新增" : "清單項目已更新");
       if (operation.action === "delete") requestAnimationFrame(() => addButton.current?.focus());
@@ -148,10 +151,7 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
   return <main id="main" className="screen">
     <header className="page-heading">
       <div><p className="eyebrow">Checklists</p><h1>清單</h1></div>
-      <button ref={addButton} className="primary-button" type="button" aria-label="新增項目"
-        aria-disabled={!canStart} onClick={() => { if (canStart) openEditor(null); }}>
-        <Icon name="plus" size={18} /><span>新增項目</span>
-      </button>
+
     </header>
     <nav className="list-tabs" aria-label="清單類型">
       {tabs.map(([kind, name, icon]) => <button className="chip-button" type="button" key={kind} id={`checklist-tab-${kind}`}
@@ -190,6 +190,16 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
           </article>) : <p className="empty-state">清單目前是空的。</p>}
         </div>
       </>}
+      <form className="checklist-add-form" onSubmit={(event) => {
+        event.preventDefault();
+        const title = newChecklistTitle(newTitle);
+        if (canStart && title) void save({ action: "create", title });
+      }}>
+        <input className="field" aria-label={`新增${label}項目`} placeholder="新增項目…" maxLength={50}
+          value={newTitle} disabled={!canStart} onChange={(event) => setNewTitle(event.target.value)} />
+        <button ref={addButton} className="primary-button section-add-button" type="submit" aria-label="新增項目"
+          disabled={!canStart || !newChecklistTitle(newTitle)}><Icon name="plus" size={18} /></button>
+      </form>
     </section>
     {notice && <div className="toast-region" role="status"><div className="toast">{notice}</div></div>}
     {editing && <ChecklistEditor item={editing.item} canSave={canWrite} busy={busy} pending={pending}
