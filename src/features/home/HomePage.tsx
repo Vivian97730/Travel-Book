@@ -6,14 +6,6 @@ import type { HomeRepository } from "./homeRepository";
 import type { FactIcon, FlightLeg, FlightSummary, TravelFact, TripHome, WeatherState } from "./types";
 import { loadCurrentWeather, weatherDescription } from "./weatherService";
 
-const factIconOptions: Array<{ value: FactIcon; label: string }> = [
-  { value: "info", label: "一般資訊" },
-  { value: "globe", label: "地區／時差" },
-  { value: "exchange", label: "匯率" },
-  { value: "plug", label: "電力／插座" },
-  { value: "water", label: "飲水" },
-];
-
 interface FactFormValue {
   id?: string;
   icon: FactIcon;
@@ -46,7 +38,7 @@ export function homeSaveFailureFor(error: unknown): HomeSaveFailure {
       };
 }
 
-function createEmptyFact(): FactFormValue {
+export function createEmptyFact(): FactFormValue {
   return { icon: "info", title: "", content: "" };
 }
 
@@ -119,7 +111,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
   const [weather, setWeather] = useState<WeatherState>({ status: "idle" });
   const [now, setNow] = useState(() => new Date());
   const requestedWeather = useRef(false);
-  const editCancelButtonRef = useRef<HTMLButtonElement>(null);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -147,7 +139,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
   }, [online]);
 
   useEffect(() => {
-    if (editing) editCancelButtonRef.current?.focus();
+    if (editing) editButtonRef.current?.focus();
   }, [editing]);
 
   const countdownVisible = isDeparturePending(now);
@@ -161,14 +153,6 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
     if (!online) return;
     setFacts(structuredClone(home!.facts));
     setEditing(true);
-    setMessage(null);
-    setSaveFailure(null);
-  }
-
-  function cancelEditing() {
-    setFacts(home!.facts);
-    setEditing(false);
-    setFormValue(null);
     setMessage(null);
     setSaveFailure(null);
   }
@@ -268,11 +252,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
       <section className="card section-card" aria-labelledby="facts-title">
         <div className="section-head">
           <div><h2 id="facts-title">旅途小知識</h2>{editing && <p>編輯中的內容會在按下儲存後生效。</p>}</div>
-          {!editing ? (
-            <button className="text-button" type="button" onClick={startEditing} disabled={!online}><Icon name="edit" size={17} />編輯</button>
-          ) : (
-            <div className="section-actions"><button ref={editCancelButtonRef} className="secondary-button" type="button" onClick={cancelEditing}>取消</button><button className="primary-button" type="button" onClick={saveFacts} disabled={saving || !online}><Icon name="check" size={17} />{saving ? "儲存中" : "儲存"}</button></div>
-          )}
+          <button ref={editButtonRef} className="icon-button" type="button" onClick={editing ? saveFacts : startEditing} disabled={saving || !online} aria-label={editing ? (saving ? "儲存中" : "完成小知識編輯") : "編輯旅途小知識"} aria-pressed={editing}><Icon name={editing ? "check" : "edit"} size={19} /></button>
         </div>
         {!online && <p className="inline-notice"><Icon name="info" size={16} />目前離線，旅途小知識僅供查看。</p>}
         {message && <p className="inline-notice" role="status">{message}</p>}
@@ -331,9 +311,9 @@ function weatherStatus(state: WeatherState, online: boolean): string {
   return "只會在進入首頁時取得一次目前位置，不會保存座標。";
 }
 
-function FactDialog({ value, onChange, onClose, onSubmit }: { value: FactFormValue; onChange: (value: FactFormValue) => void; onClose: () => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
+export function FactDialog({ value, onChange, onClose, onSubmit }: { value: FactFormValue; onChange: (value: FactFormValue) => void; onClose: () => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
   const dialogRef = useDialogAccessibility(onClose);
-  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="fact-dialog-title"><form className="dialog-form" onSubmit={onSubmit}><header className="dialog-head"><h2 id="fact-dialog-title">{value.id ? "編輯小知識" : "新增小知識"}</h2><button className="icon-button" type="button" onClick={onClose} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="fact-icon">圖示</label><select className="field" id="fact-icon" value={value.icon} data-dialog-initial-focus onChange={(event) => onChange({ ...value, icon: event.target.value as FactIcon })}>{factIconOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div><div className="field-group"><label htmlFor="fact-title">標題</label><input className="field" id="fact-title" value={value.title} maxLength={40} required onChange={(event) => onChange({ ...value, title: event.target.value })} /></div><div className="field-group"><label htmlFor="fact-content">內容</label><textarea className="field" id="fact-content" value={value.content} maxLength={160} required onChange={(event) => onChange({ ...value, content: event.target.value })} /></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onClose}>取消</button><button className="primary-button" type="submit">套用</button></div></form></section></div>;
+  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="fact-dialog-title"><form className="dialog-form" onSubmit={onSubmit}><header className="dialog-head"><h2 id="fact-dialog-title">{value.id ? "編輯小知識" : "新增小知識"}</h2><button className="icon-button" type="button" onClick={onClose} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="fact-title">標題</label><input className="field" id="fact-title" data-dialog-initial-focus value={value.title} maxLength={40} required onChange={(event) => onChange({ ...value, title: event.target.value })} /></div><div className="field-group"><label htmlFor="fact-content">內容</label><textarea className="field" id="fact-content" value={value.content} maxLength={160} required onChange={(event) => onChange({ ...value, content: event.target.value })} /></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onClose}>取消</button><button className="primary-button" type="submit">套用</button></div></form></section></div>;
 }
 
 function useDialogAccessibility(onClose: () => void) {
