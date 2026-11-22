@@ -8,6 +8,7 @@ import type { HomeRepository } from "./homeRepository";
 
 export class SnapshotHomeRepository implements HomeRepository {
   private active = true;
+  private revision = 0;
   private readonly writes = new Set<Promise<void>>();
   private tokenHash: Promise<string> | null = null;
 
@@ -26,21 +27,23 @@ export class SnapshotHomeRepository implements HomeRepository {
       return structuredClone(snapshot.home);
     }
 
+    const revision = this.revision;
     const home = await this.api.getTripHome();
-    await this.saveSnapshot(home);
+    await this.saveSnapshot(home, revision);
     return home;
   }
 
   async saveTravelFacts(facts: TravelFact[], expectedVersion: number): Promise<TripHome> {
     if (!this.isOnline()) throw new Error("OFFLINE_READ_ONLY");
+    this.revision++;
     const home = await this.api.saveTravelFacts(facts, expectedVersion);
     await this.saveSnapshot(home);
     return home;
   }
 
-  private async saveSnapshot(home: TripHome): Promise<void> {
+  private async saveSnapshot(home: TripHome, revision = this.revision): Promise<void> {
     const tokenHash = await this.getTokenHash();
-    if (!this.active) return;
+    if (!this.active || revision !== this.revision) return;
     const write = this.snapshots.put(createHomeSnapshot({
       tokenHash,
       access: this.access,

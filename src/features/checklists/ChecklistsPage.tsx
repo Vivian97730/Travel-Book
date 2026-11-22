@@ -1,3 +1,4 @@
+import { CacheControls, useCacheRevision } from "../cache/CacheContext";
 import { newChecklistTitle } from "./newChecklistTitle";
 import { OfflineSnapshotStatus } from "../offline/OfflineSnapshotStatus";
 import type { SnapshotInfo } from "../offline/coreSnapshots";
@@ -64,6 +65,7 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
   const [pending, setPending] = useState<Pending | null>(null);
   const [notice, setNotice] = useState("");
   const [newTitle, setNewTitle] = useState("");
+  const cacheRevision = useCacheRevision(!!editing || busy || !!pending || !!newTitle);
   const inFlight = useRef(false);
   const addButton = useRef<HTMLButtonElement>(null);
 
@@ -81,7 +83,7 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
         : shared ? "目前無法讀取必備清單。" : "目前無法讀取個人清單。", recovery: "reload" });
     });
     return () => { active = false; };
-  }, [attempt, offline, shared, source]);
+  }, [attempt, offline, shared, source, cacheRevision]);
 
   useEffect(() => {
     if (!notice) return;
@@ -153,6 +155,7 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
       <div><p className="eyebrow">Checklists</p><h1>清單</h1></div>
 
     </header>
+    <CacheControls online={online} blocked={!!editing || busy || !!pending || !!newTitle} />
     <nav className="list-tabs" aria-label="清單類型">
       {tabs.map(([kind, name, icon]) => <button className="chip-button" type="button" key={kind} id={`checklist-tab-${kind}`}
         aria-pressed={source.kind === kind} disabled={busy} onClick={() => onTab(kind)}>

@@ -51,10 +51,10 @@ it("shares the latest saved collection across reads and offline reloads", async 
   expect(source.removePhoto).not.toHaveBeenCalled();
   const other = new SnapshotStaysRepository(source, snapshots, "other-token", access, () => online);
   await expect(other.getStays()).rejects.toThrow("OFFLINE_SNAPSHOT_UNAVAILABLE");
-  expect(source.getStays).toHaveBeenCalledTimes(2);
+  expect(source.getStays).toHaveBeenCalledTimes(1);
   online = true;
   expect(await reopened.getStays()).toEqual([updated]);
-  expect(source.getStays).toHaveBeenCalledTimes(3);
+  expect(source.getStays).toHaveBeenCalledTimes(2);
 });
 
 it("rejects malformed and expired cached data", () => {

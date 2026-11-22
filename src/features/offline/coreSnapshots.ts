@@ -36,8 +36,7 @@ export class CoreSnapshots {
     }
   }
 
-  async put(tokenHash: string, resource: string, data: unknown) {
-    const now = Date.now();
+  async put(tokenHash: string, resource: string, data: unknown, now = Date.now()) {
     const entry: Entry = {
       tokenHash, resource, data, snapshotVersion: 1, syncedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + HOME_SNAPSHOT_MAX_AGE_MS).toISOString(),

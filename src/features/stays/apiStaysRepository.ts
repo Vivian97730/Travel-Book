@@ -14,7 +14,8 @@ export class ApiStaysRepository implements StaysRepository {
       method: "POST", headers: { authorization: `Bearer ${this.token}`, "content-type": "image/jpeg" }, body: file,
     });
     const body: unknown = await response.json().catch(() => null);
-    if (!response.ok || !isStayPhoto(body)) {
+    if (!response.ok) throw this.photoFailure(body, "照片上傳失敗，請稍後重試。");
+    if (!isStayPhoto(body)) {
       throw new Error("照片上傳失敗，請稍後重試。");
     }
     return body;
@@ -25,7 +26,7 @@ export class ApiStaysRepository implements StaysRepository {
     const response = await fetcher(`${this.baseUrl.replace(/\/$/, "")}/v1/stay-photos/${encodeURIComponent(id)}`, {
       headers: { authorization: `Bearer ${this.token}` }, cache: "no-store",
     });
-    if (!response.ok) throw new Error("照片讀取失敗。");
+    if (!response.ok) throw this.photoFailure(await response.json().catch(() => null), "照片讀取失敗。");
     return response.blob();
   }
 
@@ -34,10 +35,17 @@ export class ApiStaysRepository implements StaysRepository {
       method: "DELETE", headers: { authorization: `Bearer ${this.token}` },
     });
     const body: unknown = await response.json().catch(() => null);
-    if (!response.ok || typeof body !== "object" || body === null || !("removed" in body) || typeof body.removed !== "boolean") {
+    if (!response.ok) throw this.photoFailure(body, "照片清理失敗。");
+    if (typeof body !== "object" || body === null || !("removed" in body) || typeof body.removed !== "boolean") {
       throw new Error("照片清理失敗。");
     }
     return body.removed;
+  }
+
+  private photoFailure(body: unknown, message: string): Error {
+    const parsed = parseApiError(body);
+    return parsed.ok ? new ApiClientError(parsed.value.error.code, parsed.value.error.message,
+      parsed.value.error.requestId, parsed.value.error.details) : new Error(message);
   }
 
   async createStay(input: StayInput): Promise<Stay> {

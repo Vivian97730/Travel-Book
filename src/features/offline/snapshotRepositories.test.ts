@@ -53,3 +53,16 @@ describe("core offline repositories", () => {
     expect(store.put).not.toHaveBeenCalled();
   });
 });
+
+it("does not let a late day GET overwrite a newer saved offline snapshot", async () => {
+  const { day, itinerary, store, hash, checklist } = setup();
+  let resolve!: (data: typeof day) => void;
+  itinerary.getDay.mockImplementation(() => new Promise((done) => { resolve = done; }));
+  const saved = { ...day, version: 2 };
+  itinerary.saveDayItems.mockResolvedValue(saved);
+  const core = snapshotRepositories(itinerary, checklist, store as unknown as CoreSnapshots, Promise.resolve(hash), () => true);
+  const pending = core.itineraryRepository.getDay(day.date);
+  await core.itineraryRepository.saveDayItems(day.date, [], 1);
+  resolve(day); await pending;
+  expect(store.put).toHaveBeenCalledExactlyOnceWith(hash, "day:" + day.date, saved);
+});

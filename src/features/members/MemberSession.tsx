@@ -1,3 +1,4 @@
+import type { ResourceCache } from "../cache/resourceCache";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { parseTripMembers, type TripMember } from "@travel-book/contracts";
 import { CoreSnapshots } from "../offline/coreSnapshots";
@@ -15,7 +16,8 @@ function MemberAvatar({ role }: { role: TripMember["roleKey"] }) {
       : <path d="m11 7 4-3 2 3 4-1" stroke="currentColor" strokeWidth="2" />}
   </svg>;
 }
-export function MemberSession({ tripId, token, baseUrl, online, children }: {
+export function MemberSession({ tripId, token, baseUrl, online, cache, children }: {
+  cache?: ResourceCache;
   tripId: string; token: string; baseUrl: string; online: boolean;
   children(member: TripMember, repository: MemberChecklistRepository, switchMember: () => void): ReactNode;
 }) {
@@ -49,11 +51,11 @@ export function MemberSession({ tripId, token, baseUrl, online, children }: {
       setSelection((previous) => {
         if (member && previous?.member.id === member.id) return previous;
         void previous?.repository.stop().catch(() => undefined);
-        return member ? { member, repository: new MemberChecklistRepository(baseUrl, token, hash, tripId, member.id) } : null;
+        return member ? { member, repository: new MemberChecklistRepository(baseUrl, token, hash, tripId, member.id, () => navigator.onLine, cache) } : null;
       });
     })().catch(() => { if (active) setError(online ? "目前無法確認成員，請重試。已保存的清單不會被清空。" : "尚無可用的離線角色資料，請連線後再試。"); });
     return () => { active = false; };
-  }, [tripId, token, baseUrl, online, attempt]);
+  }, [tripId, token, baseUrl, online, attempt, cache]);
 
   useEffect(() => {
     const repository = selection?.repository;
@@ -72,7 +74,7 @@ export function MemberSession({ tripId, token, baseUrl, online, children }: {
     catch { setStorageNotice("此瀏覽器無法保存角色，下次開啟時需重新選擇。"); }
     await switching.current;
     const hash = await hashAccessToken(token);
-    const repository = new MemberChecklistRepository(baseUrl, token, hash, tripId, member.id);
+    const repository = new MemberChecklistRepository(baseUrl, token, hash, tripId, member.id, () => navigator.onLine, cache);
     setSelection({ member, repository });
     choosing.current = false;
 

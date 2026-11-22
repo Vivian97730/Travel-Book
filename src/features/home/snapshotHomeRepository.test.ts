@@ -81,3 +81,16 @@ describe("snapshot-backed HomeRepository", () => {
       .resolves.toMatchObject({ home: updated });
   });
 });
+
+it("does not let a late read overwrite the saved offline home snapshot", async () => {
+  const snapshots = new MemoryHomeSnapshotRepository();
+  let resolve!: (home: typeof initialTripHome) => void;
+  const oldRead = new Promise<typeof initialTripHome>((done) => { resolve = done; });
+  const saved = { ...initialTripHome, version: 2 };
+  const api: HomeRepository = { getTripHome: () => oldRead, saveTravelFacts: async () => saved };
+  const repository = new SnapshotHomeRepository(api, snapshots, "synthetic", access, () => true);
+  const pending = repository.getTripHome();
+  await repository.saveTravelFacts(saved.facts, 1);
+  resolve(initialTripHome); await pending;
+  expect((await snapshots.get(await hashAccessToken("synthetic")))?.home.version).toBe(2);
+});

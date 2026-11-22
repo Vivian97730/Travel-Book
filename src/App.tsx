@@ -1,3 +1,6 @@
+import { ResourceCache } from "./features/cache/resourceCache";
+import { cachedHome, cachedStays, cachedItinerary, cachedChecklist, cachedExpenses } from "./features/cache/cachedRepositories";
+import { CacheContext } from "./features/cache/CacheContext";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { captureAccessToken, createAccessTokenStore } from "./app/accessSession";
 import { hashForRoute, parseAppHash, type Route } from "./app/routing";
@@ -66,8 +69,23 @@ export default function App() {
   const [route, setRoute] = useState<Route>(routeFromCurrentHash);
   const [online, setOnline] = useState(navigator.onLine);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  const coreSnapshots = useMemo(() => new CoreSnapshots(), []);
+  const [accessAttempt, setAccessAttempt] = useState(0);
+  const cache = useMemo(() => {
+    if (!accessToken || !apiBaseUrl) return null;
+    const scope = hashAccessToken(`${apiBaseUrl}\n${accessToken}`);
+    return new ResourceCache({
+      async get(key) {
+        const entry = await coreSnapshots.get(await scope, `cache:${key}`);
+        return entry ? { data: entry.data, syncedAt: Date.parse(entry.syncedAt) } : undefined;
+      },
+      async put(key, entry) { await coreSnapshots.put(await scope, `cache:${key}`, entry.data, entry.syncedAt); },
+      async delete(key) { await coreSnapshots.deleteResource(await scope, `cache:${key}`); },
+    }, Date.now, () => { setVerifiedAccess(null); setAccessAttempt((value) => value + 1); });
+  }, [accessToken, apiBaseUrl, coreSnapshots]);
+  useEffect(() => cache?.attach(), [cache]);
   const staysSnapshots = useMemo(() => new IndexedDbStaysSnapshots(), []);
-  const staysRepository = useMemo(
+  const staysSnapshotRepository = useMemo(
     () => apiBaseUrl && accessToken && verifiedAccess
       ? new SnapshotStaysRepository(
           new ApiStaysRepository(apiBaseUrl, accessToken), staysSnapshots, accessToken, verifiedAccess,
@@ -77,7 +95,7 @@ export default function App() {
     [apiBaseUrl, accessToken, staysSnapshots, verifiedAccess],
   );
   const homeSnapshots = useMemo(() => new IndexedDbHomeSnapshotRepository(), []);
-  const homeRepository = useMemo(
+  const homeSnapshotRepository = useMemo(
     () => apiBaseUrl && accessToken && verifiedAccess
       ? new SnapshotHomeRepository(
           new ApiHomeRepository(apiBaseUrl, accessToken),
@@ -90,14 +108,15 @@ export default function App() {
     [accessToken, apiBaseUrl, homeSnapshots, verifiedAccess],
   );
   const [checklistRevision, setChecklistRevision] = useState(0);
-  const coreSnapshots = useMemo(() => new CoreSnapshots(), []);
   const tokenHash = useMemo(() => accessToken ? hashAccessToken(accessToken) : null, [accessToken]);
   const core = useMemo(() => apiBaseUrl && accessToken && tokenHash ? snapshotRepositories(
     new ApiItineraryRepository(apiBaseUrl, accessToken),
     new ApiSharedChecklistRepository(apiBaseUrl, accessToken), coreSnapshots, tokenHash, () => navigator.onLine,
   ) : null, [accessToken, apiBaseUrl, coreSnapshots, tokenHash]);
-  const itineraryRepository = core?.itineraryRepository;
-  const sharedChecklistRepository = core?.checklistRepository;
+  const homeRepository = useMemo(() => homeSnapshotRepository && cache ? cachedHome(homeSnapshotRepository, cache) : null, [homeSnapshotRepository, cache]);
+  const staysRepository = useMemo(() => staysSnapshotRepository && cache ? cachedStays(staysSnapshotRepository, cache) : null, [staysSnapshotRepository, cache]);
+  const itineraryRepository = useMemo(() => core && cache ? cachedItinerary(core.itineraryRepository, cache) : null, [core, cache]);
+  const sharedChecklistRepository = useMemo(() => core && cache ? cachedChecklist(core.checklistRepository, cache) : null, [core, cache]);
   const readChecklistInfo = useMemo(() => async () => tokenHash
     ? coreSnapshots.get(await tokenHash, "checklist") : null, [coreSnapshots, tokenHash]);
   const readDayInfo = useMemo(() => async (date: string) => tokenHash
@@ -108,16 +127,18 @@ export default function App() {
     return route === "home" ? homeSnapshots.get(hash) : staysSnapshots.get(hash, { includeExpired: true });
   }, [homeSnapshots, route, staysSnapshots, tokenHash]);
   const expensesRepository = useMemo(
-    () => apiBaseUrl && accessToken ? new ApiExpensesRepository(apiBaseUrl, accessToken) : null,
-    [accessToken, apiBaseUrl],
+    () => apiBaseUrl && accessToken && cache ? cachedExpenses(new ApiExpensesRepository(apiBaseUrl, accessToken), cache) : null,
+    [accessToken, apiBaseUrl, cache],
   );
-  const currentSnapshotRepositories = useRef({ homeRepository, staysRepository });
+  const currentSnapshotRepositories = useRef({ homeRepository: homeSnapshotRepository, staysRepository: staysSnapshotRepository });
   useEffect(() => {
+    const homeRepository = homeSnapshotRepository;
+    const staysRepository = staysSnapshotRepository;
     const previous = currentSnapshotRepositories.current;
     if (previous.homeRepository !== homeRepository) void previous.homeRepository?.stopSaving();
     if (previous.staysRepository !== staysRepository) void previous.staysRepository?.stopSaving();
     currentSnapshotRepositories.current = { homeRepository, staysRepository };
-  }, [homeRepository, staysRepository]);
+  }, [homeSnapshotRepository, staysSnapshotRepository]);
 
   useEffect(() => {
     let active = true;
@@ -162,7 +183,9 @@ export default function App() {
         const snapshots = currentSnapshotRepositories.current;
         await Promise.allSettled([snapshots.homeRepository?.stopSaving(), snapshots.staysRepository?.stopSaving()]);
         if (!active) return;
+        await cache?.stop();
         await Promise.allSettled([
+          apiBaseUrl && hashAccessToken(`${apiBaseUrl}\n${accessToken}`).then((hash) => coreSnapshots.delete(hash)),
           core?.revoke(),
           deleteHomeSnapshotForToken(homeSnapshots, accessToken),
           hashAccessToken(accessToken).then((hash) => staysSnapshots.delete(hash)),
@@ -177,7 +200,7 @@ export default function App() {
       }
     });
     return () => { active = false; };
-  }, [accessStore, accessToken, apiBaseUrl, core, coreSnapshots, homeSnapshots, staysSnapshots, online, tokenHash]);
+  }, [accessStore, accessToken, apiBaseUrl, core, coreSnapshots, homeSnapshots, staysSnapshots, online, tokenHash, accessAttempt, cache]);
 
   useEffect(() => {
     const updateRoute = () => {
@@ -207,20 +230,20 @@ export default function App() {
   }, [accessStore]);
 
   useEffect(() => {
-    if (!online || accessState !== "ready" || !verifiedAccess || !core || !homeRepository || !staysRepository) return;
+    if (!online || accessState !== "ready" || !verifiedAccess || !core || !homeRepository || !staysRepository || !sharedChecklistRepository || !itineraryRepository) return;
     let active = true;
     const { startDate, endDate } = verifiedAccess.trip;
     void Promise.allSettled([
-      homeRepository.getTripHome(), staysRepository.getStays(), core.checklistRepository.getSharedChecklist(),
+      homeRepository.getTripHome(), staysRepository.getStays(), sharedChecklistRepository.getSharedChecklist(),
       (async () => {
         for (const date of buildDateWindow(startDate, endDate)) {
           if (!active || !navigator.onLine) break;
-          await core.itineraryRepository.getDay(date).catch(() => undefined);
+          await itineraryRepository.getDay(date).catch(() => undefined);
         }
       })(),
     ]);
     return () => { active = false; };
-  }, [accessState, core, homeRepository, online, staysRepository, verifiedAccess]);
+  }, [accessState, core, homeRepository, online, staysRepository, verifiedAccess, itineraryRepository, sharedChecklistRepository]);
 
   function navigate(next: Route) {
     window.location.hash = hashForRoute(next);
@@ -230,7 +253,7 @@ export default function App() {
     return <AccessStatus state={accessState} online={online} />;
   }
 
-  return <MemberSession key={`${verifiedAccess.trip.id}:${accessToken}`} tripId={verifiedAccess.trip.id} token={accessToken!} baseUrl={apiBaseUrl!} online={online}>
+  return <CacheContext.Provider value={cache}><MemberSession cache={cache ?? undefined} key={`${verifiedAccess.trip.id}:${accessToken}`} tripId={verifiedAccess.trip.id} token={accessToken!} baseUrl={apiBaseUrl!} online={online}>
     {(member, personalChecklistRepository, switchMember) => <div className="app-shell">
     <header className="topbar"><button className="brand brand-button" type="button" onClick={() => navigate("itinerary")}><span className="brand-mark">旅</span><span>Travel Book</span></button><div className="topbar-side"><span className="sync-label">{online ? "首頁功能開發版" : "離線唯讀"}</span><button className="avatar member-switch" type="button" disabled={!online} title="切換使用者" aria-label={`目前使用者：${member.displayName}，切換使用者`} onClick={switchMember}>{member.displayName}</button></div></header>
     {route === "lists" && <LegacyChecklistImport key={member.id} member={member} repository={personalChecklistRepository} online={online} onImported={() => setChecklistRevision((value) => value + 1)} />}
@@ -240,7 +263,7 @@ export default function App() {
       {routeItems.map(([value, icon, label]) => <button className="nav-button" type="button" key={value} onClick={() => navigate(value)} aria-current={route === value ? "page" : undefined}><Icon name={icon} size={20} /><span>{label}</span></button>)}
     </nav>
   </div>}
-  </MemberSession>;
+  </MemberSession></CacheContext.Provider>;
 }
 
 function AccessStatus({ state, online }: { state: AccessState; online: boolean }) {

@@ -1,4 +1,4 @@
-import type { AccessVerifyResponse, StayInput } from "@travel-book/contracts";
+import type { AccessVerifyResponse, Stay, StayInput } from "@travel-book/contracts";
 import { hashAccessToken } from "../offline/homeSnapshotRepository";
 import type { StaysRepository } from "./staysRepository";
 import { createStaysSnapshot, type StaysSnapshots } from "./staysSnapshot";
@@ -52,29 +52,38 @@ export class SnapshotStaysRepository implements StaysRepository {
     if (!this.active || !this.online()) throw new Error("OFFLINE_READ_ONLY");
   }
 
-  private mutate<T>(operation: () => Promise<T>): Promise<T> {
+  private mutate<T>(operation: () => Promise<T>, update: (stays: Stay[], result: T) => Stay[]): Promise<T> {
     return this.queue(async () => {
       this.requireOnline();
       const result = await operation();
-      // A saved mutation must still succeed when refreshing the local snapshot fails.
-      await this.refresh().catch(async () => {
+      // Apply the authoritative mutation result without another GET.
+      const hash = await this.tokenHash;
+      const previous = await this.snapshots.get(hash).catch(() => null);
+      if (previous && this.active) {
+        const snapshot = createStaysSnapshot(hash, this.access, update(previous.stays, result));
+        this.lastSyncedAt = snapshot.syncedAt;
+        await this.snapshots.put(snapshot).catch(async () => {
+          this.lastSyncedAt = null;
+          await this.snapshots.delete(hash).catch(() => undefined);
+        });
+      } else {
         this.lastSyncedAt = null;
-        await this.snapshots.delete(await this.tokenHash).catch(() => undefined);
-      });
+        await this.snapshots.delete(hash).catch(() => undefined);
+      }
       return result;
     });
   }
 
   createStay(input: StayInput) {
-    return this.mutate(() => this.source.createStay(input));
+    return this.mutate(() => this.source.createStay(input), (stays, saved) => [...stays.filter((stay) => stay.id !== saved.id), saved]);
   }
 
   updateStay(id: string, input: StayInput, version: number) {
-    return this.mutate(() => this.source.updateStay(id, input, version));
+    return this.mutate(() => this.source.updateStay(id, input, version), (stays, saved) => stays.map((stay) => stay.id === id ? saved : stay));
   }
 
   deleteStay(id: string, version: number) {
-    return this.mutate(() => this.source.deleteStay(id, version));
+    return this.mutate(() => this.source.deleteStay(id, version), (stays) => stays.filter((stay) => stay.id !== id));
   }
 
   async uploadPhoto(file: Blob) {

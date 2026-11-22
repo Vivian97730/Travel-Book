@@ -1,3 +1,4 @@
+import { CacheControls, useCacheRevision } from "../cache/CacheContext";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import heroImage from "../../../dist/assets/hero-winter-pine.jpg";
@@ -110,6 +111,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
   const [saveFailure, setSaveFailure] = useState<HomeSaveFailure | null>(null);
   const [weather, setWeather] = useState<WeatherState>({ status: "idle" });
   const [now, setNow] = useState(() => new Date());
+  const cacheRevision = useCacheRevision(editing || saving);
   const requestedWeather = useRef(false);
   const editButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -122,7 +124,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
       setFacts(data.facts);
     }).catch(() => { if (active) { setHome(null); setLoadFailed(true); } });
     return () => { active = false; };
-  }, [repository, online]);
+  }, [repository, online, cacheRevision]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
@@ -223,6 +225,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
     <>
     <main id="main" className="screen">
       <header className="page-heading"><div><p className="eyebrow">Trip overview</p><h1>旅程首頁</h1></div></header>
+    <CacheControls online={online} blocked={editing || saving} />
       <section className="home-grid">
         <article className="card hero-card">
           <img className="hero-illustration" src={heroImage} alt="" aria-hidden="true" />
