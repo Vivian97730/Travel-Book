@@ -305,7 +305,6 @@ export function ItineraryDayView({
   });
   return <main id="main" className="screen">
     <header className="page-heading"><div><p className="eyebrow">Daily plan</p><h1>每日行程</h1></div></header>
-    <CacheControls online={online} blocked={editing || saving} />
     <ItineraryDates dates={dates} selectedDate={selectedDate} onSelectDate={onSelectDate} />
     <div className="itinerary-grid">
       <section className="card map-card" data-map-provider="openstreetmap" data-map-points={mappedItems.map((item) => item.name).join("|")} aria-label={`OpenStreetMap 每日地點地圖，${mappedItems.length} 個有座標地點`}>
@@ -341,6 +340,7 @@ export function ItineraryDayView({
         {canEdit && <button className="secondary-button add-itinerary-button" type="button" onClick={onAddItem}><Icon name="plus" size={17} />新增行程</button>}
       </section>
     </div>
+    <CacheControls online={online} blocked={editing || saving} />
   </main>;
 }
 
