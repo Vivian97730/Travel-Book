@@ -310,7 +310,6 @@ export function ItineraryDayView({
       <section className="card map-card" data-map-provider="openstreetmap" data-map-points={mappedItems.map((item) => item.name).join("|")} aria-label={`OpenStreetMap 每日地點地圖，${mappedItems.length} 個有座標地點`}>
         <ItineraryMap key={day.date} city={day.city} locations={mappedItems} online={online} />
         <span className="map-label">{day.city}・{mappedItems.length} 個地點</span>
-        <a className="primary-button map-action" href={googleMapsSearchUrl(day.city)} target="_blank" rel="noreferrer"><Icon name="map" size={18} />開啟 Google Maps</a>
       </section>
       <section className="card section-card" aria-labelledby="city-title">
         <div className="city-head"><div><p className="eyebrow">{day.date}・週{day.weekday}</p><h2 id="city-title">{day.city}</h2><p>{editing ? (online ? "編輯模式：可新增、修改、刪除或拖曳排序。" : "離線唯讀：草稿已保留，連線後可繼續編輯。") : day.summary}</p></div><button className="icon-button" type="button" onClick={onToggleEditing} disabled={saving || !online} aria-label={editing ? "完成行程編輯" : "編輯城市與行程"} aria-pressed={editing}><Icon name={editing ? "check" : "edit"} size={19} /></button></div>
