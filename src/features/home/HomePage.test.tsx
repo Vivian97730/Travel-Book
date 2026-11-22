@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
+  createEmptyFact,
+  FactDialog,
   FlightCard,
   FlightDuration,
   FlightLegLabel,
@@ -83,5 +85,16 @@ describe("home fact save recovery", () => {
     />);
 
     expect(html).toMatch(/<button[^>]*disabled=""/);
+  });
+});
+
+describe("fact form", () => {
+  it("defaults new facts to info and removes icon selection while retaining existing icons", () => {
+    expect(createEmptyFact()).toEqual({ icon: "info", title: "", content: "" });
+    const html = renderToStaticMarkup(<FactDialog value={{ id: "existing", icon: "plug", title: "插座", content: "轉接頭" }} onChange={() => undefined} onClose={() => undefined} onSubmit={() => undefined} />);
+    expect(html).not.toContain("<select");
+    expect(html).not.toContain("fact-icon");
+    expect(html).toMatch(/id="fact-title"[^>]*data-dialog-initial-focus/);
+    expect(html).toContain("轉接頭");
   });
 });
