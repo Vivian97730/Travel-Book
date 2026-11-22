@@ -28,6 +28,8 @@ describe("itinerary page public behavior", () => {
     expect(html).toContain("Schloss Schonbrunn");
     expect(html).toContain('data-map-points="Schloss Schonbrunn|Cafe Central"');
     expect(html).toContain('data-map-orders="2|3"');
+    expect(html).not.toContain("開啟 Google Maps");
+    expect(html).not.toContain("map-action");
     expect(html).toContain("編輯城市與行程");
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain('aria-controls="itinerary-note-');
@@ -76,7 +78,8 @@ describe("itinerary page public behavior", () => {
     />);
 
     expect(html).toContain("中央咖啡館午餐");
-    expect(html).toContain("開啟 Google Maps");
+    expect(html).not.toContain("開啟 Google Maps");
+    expect(html).not.toContain("map-action");
     expect(html).toContain('data-map-status="offline"');
     expect(html).toContain("離線時不載入街道圖磚");
     expect(html).not.toMatch(/class="date-button"[^>]*disabled=""/);
