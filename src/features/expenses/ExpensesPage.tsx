@@ -1,3 +1,4 @@
+import { CacheControls, useCacheRevision } from "../cache/CacheContext";
 import { useEffect, useState } from "react";
 import { expenseCurrencies, type Expense, type ExpenseCurrency, type ExpensesResponse, type ForeignExpenseCurrency } from "@travel-book/contracts";
 import { Icon, type IconName } from "../../components/Icon";
@@ -83,6 +84,7 @@ export function ExpensesPage({ repository, online }: { repository: ExpensesRepos
   const [notice, setNotice] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
+  const cacheRevision = useCacheRevision(!!editing);
   useEffect(() => {
     if (!notice) return;
     const timeout = setTimeout(() => setNotice(""), 3000);
@@ -101,11 +103,12 @@ export function ExpensesPage({ repository, online }: { repository: ExpensesRepos
         ? "私人連結已失效。請向家人取得新的私人連結。" : "目前無法讀取支出資料。" });
     }).finally(() => { if (active) setRefreshing(false); });
     return () => { active = false; };
-  }, [attempt, online, repository]);
+  }, [attempt, online, repository, cacheRevision]);
 
   return <main id="main" className="screen">
     <header className="page-heading"><div><p className="eyebrow">Expenses</p><h1>記帳</h1></div>
     </header>
+    <CacheControls online={online} blocked={!!editing} />
     {notice && <div className="toast-region" role="status"><div className="toast">{notice}</div></div>}
     {!online ? <section className="card section-card" role="status">離線時無法載入支出，請連線後再試。</section>
       : state.kind === "loading" ? <p className="loading-state" role="status">正在讀取支出…</p>

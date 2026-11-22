@@ -1,3 +1,4 @@
+import { CacheControls, useCacheRevision } from "../cache/CacheContext";
 import { OfflineSnapshotStatus } from "../offline/OfflineSnapshotStatus";
 import type { SnapshotInfo } from "../offline/coreSnapshots";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
@@ -77,6 +78,7 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
   const [formItem, setFormItem] = useState<ItineraryItem | null | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [saveFailure, setSaveFailure] = useState<ItinerarySaveFailure | null>(null);
+  const cacheRevision = useCacheRevision(editing || saving);
   const dates = useMemo(
     () => buildDateWindow(trip.startDate, trip.endDate),
     [trip.endDate, trip.startDate],
@@ -97,7 +99,7 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [repository, selectedDate, online]);
+  }, [repository, selectedDate, online, cacheRevision]);
 
   useEffect(() => {
     if (!staysRepository) return;
@@ -108,7 +110,7 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
       if (active) setStays([]);
     });
     return () => { active = false; };
-  }, [staysRepository, online]);
+  }, [staysRepository, online, cacheRevision]);
 
   if (loading && !day) return <main id="main" className="screen"><p className="loading-state">正在載入每日行程⋯</p></main>;
   if (!day || error) return <main id="main" className="screen">
@@ -303,6 +305,7 @@ export function ItineraryDayView({
   });
   return <main id="main" className="screen">
     <header className="page-heading"><div><p className="eyebrow">Daily plan</p><h1>每日行程</h1></div></header>
+    <CacheControls online={online} blocked={editing || saving} />
     <ItineraryDates dates={dates} selectedDate={selectedDate} onSelectDate={onSelectDate} />
     <div className="itinerary-grid">
       <section className="card map-card" data-map-provider="openstreetmap" data-map-points={mappedItems.map((item) => item.name).join("|")} aria-label={`OpenStreetMap 每日地點地圖，${mappedItems.length} 個有座標地點`}>

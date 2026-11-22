@@ -1,3 +1,5 @@
+import type { ResourceCache } from "../cache/resourceCache";
+import { cachedChecklist } from "../cache/cachedRepositories";
 import { parseSharedChecklistResponse, type SharedChecklistResponse } from "@travel-book/contracts";
 import { ApiClientError } from "../../shared/api/apiClient";
 import { ApiSharedChecklistRepository } from "../checklists/apiSharedChecklistRepository";
@@ -15,7 +17,7 @@ export class MemberChecklistRepository implements PersonalChecklistRepository {
   private readonly repositories = new Map<PersonalChecklistKind, SharedChecklistRepository>();
   constructor(private readonly base: string, private readonly token: string,
     private readonly tokenHash: string, private readonly tripId: string, private readonly memberId: string,
-    private readonly online: () => boolean = () => navigator.onLine) {}
+    private readonly online: () => boolean = () => navigator.onLine, private readonly cache?: ResourceCache) {}
   private resource(kind: PersonalChecklistKind) { return `personal:${this.tripId}:${this.memberId}:${kind}`; }
   readSnapshotInfo(kind: PersonalChecklistKind) {
     return this.snapshots.get(this.tokenHash, this.resource(kind));
@@ -58,8 +60,9 @@ export class MemberChecklistRepository implements PersonalChecklistRepository {
         return remember(await authorized(() => api.mutateSharedChecklist(mutation, key)));
       },
     };
-    this.repositories.set(kind, repository);
-    return repository;
+    const cached = this.cache ? cachedChecklist(repository, this.cache, this.resource(kind)) : repository;
+    this.repositories.set(kind, cached);
+    return cached;
   }
   stopSaving(): Promise<void> {
     this.active = false;
@@ -70,6 +73,7 @@ export class MemberChecklistRepository implements PersonalChecklistRepository {
   stop(): Promise<void> {
     if (this.stopping) return this.stopping;
     this.stopping = this.stopSaving().then(async () => {
+      await Promise.all((["luggage", "todos"] as const).map((kind) => this.cache?.invalidate(this.resource(kind))));
       await Promise.all((["luggage", "todos"] as const).map((kind) =>
         this.snapshots.deleteResource(this.tokenHash, this.resource(kind))));
     });

@@ -1,3 +1,4 @@
+import { CacheControls, useCacheRevision } from "../cache/CacheContext";
 import { StayPhoto } from "./StayPhoto";
 import { useEffect, useState } from "react";
 import type { Stay, StayInput } from "@travel-book/contracts";
@@ -25,6 +26,7 @@ export function StaysPage({ repository, online, startDate = "2027-02-05", endDat
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const [editor, setEditor] = useState<{ stay: Stay | null; key: number } | null>(null);
+  const cacheRevision = useCacheRevision(!!editor);
   useEffect(() => {
     let active = true;
     setError(null);
@@ -34,7 +36,7 @@ export function StaysPage({ repository, online, startDate = "2027-02-05", endDat
         ? "私人連結已失效，請重新開啟家人分享的連結。" : "目前無法讀取住宿，請稍後重試。");
     });
     return () => { active = false; };
-  }, [repository, online, retry]);
+  }, [repository, online, retry, cacheRevision]);
   async function save(input: StayInput) {
     if (!online || !editor) throw new Error("OFFLINE_READ_ONLY");
     const saved = editor.stay
@@ -58,6 +60,7 @@ export function StaysPage({ repository, online, startDate = "2027-02-05", endDat
     setEditor({ stay, key: editor.key + 1 });
   }
   return <main id="main" className="screen"><header className="page-heading"><div><p className="eyebrow">Stays</p><h1>住宿</h1></div><button className="primary-button" type="button" aria-label="新增住宿" disabled={!online || stays === null || !!error} onClick={() => setEditor({ stay: null, key: 0 })}><Icon name="plus" size={18} /><span>新增住宿</span></button></header>
+    <CacheControls online={online} blocked={!!editor} />
     {!online && <p role="status">目前離線，住宿為唯讀。{stays === null ? "連線後即可讀取住宿資料。" : repository.lastSyncedAt ? `最後同步：${new Date(repository.lastSyncedAt).toLocaleString("zh-TW")}` : ""}</p>}
     {error ? <section className="card section-card"><p role="alert">{error}</p><button className="secondary-button" type="button" disabled={!online} onClick={() => setRetry((value) => value + 1)}>重新載入</button></section>
       : stays === null ? online && <p className="loading-state" role="status">正在讀取住宿…</p>
