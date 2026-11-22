@@ -108,7 +108,6 @@ export function ExpensesPage({ repository, online }: { repository: ExpensesRepos
   return <main id="main" className="screen">
     <header className="page-heading"><div><p className="eyebrow">Expenses</p><h1>記帳</h1></div>
     </header>
-    <CacheControls online={online} blocked={!!editing} />
     {notice && <div className="toast-region" role="status"><div className="toast">{notice}</div></div>}
     {!online ? <section className="card section-card" role="status">離線時無法載入支出，請連線後再試。</section>
       : state.kind === "loading" ? <p className="loading-state" role="status">正在讀取支出…</p>
@@ -124,6 +123,7 @@ export function ExpensesPage({ repository, online }: { repository: ExpensesRepos
       onClose={() => { setEditing(null); if (online) setAttempt((value) => value + 1); }}
       onData={(data) => setState({ kind: "ready", data })}
       onSaved={(data, message) => { setState({ kind: "ready", data }); setEditing(null); setNotice(message); }} />}
+    <CacheControls online={online} blocked={!!editing} />
   </main>;
 }
 

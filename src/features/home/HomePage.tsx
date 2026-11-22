@@ -225,7 +225,6 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
     <>
     <main id="main" className="screen">
       <header className="page-heading"><div><p className="eyebrow">Trip overview</p><h1>旅程首頁</h1></div></header>
-    <CacheControls online={online} blocked={editing || saving} />
       <section className="home-grid">
         <article className="card hero-card">
           <img className="hero-illustration" src={heroImage} alt="" aria-hidden="true" />
@@ -271,6 +270,7 @@ export function HomePage({ repository, online }: { repository: HomeRepository; o
         {editing && <button className="secondary-button add-fact-button" type="button" onClick={() => setFormValue(createEmptyFact())}><Icon name="plus" size={17} />新增小知識</button>}
       </section>
 
+    <CacheControls online={online} blocked={editing || saving} />
     </main>
     {saveFailure && <HomeSaveRecovery
       failure={saveFailure}

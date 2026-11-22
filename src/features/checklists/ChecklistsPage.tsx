@@ -155,7 +155,6 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
       <div><p className="eyebrow">Checklists</p><h1>清單</h1></div>
 
     </header>
-    <CacheControls online={online} blocked={!!editing || busy || !!pending || !!newTitle} />
     <nav className="list-tabs" aria-label="清單類型">
       {tabs.map(([kind, name, icon]) => <button className="chip-button" type="button" key={kind} id={`checklist-tab-${kind}`}
         aria-pressed={source.kind === kind} disabled={busy} onClick={() => onTab(kind)}>
@@ -209,6 +208,7 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
       failure={failure} offline={offline} recovery={failure?.recovery === "reload" ? recovery : null} onClose={closeEditor}
       onSave={(title) => pending ? void save(pending.operation, pending.key)
         : void save(editing.item ? { action: "rename", item: editing.item, title } : { action: "create", title })} />}
+    <CacheControls online={online} blocked={!!editing || busy || !!pending || !!newTitle} />
   </main>;
 }
 

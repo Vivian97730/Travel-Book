@@ -60,12 +60,12 @@ export function StaysPage({ repository, online, startDate = "2027-02-05", endDat
     setEditor({ stay, key: editor.key + 1 });
   }
   return <main id="main" className="screen"><header className="page-heading"><div><p className="eyebrow">Stays</p><h1>住宿</h1></div><button className="primary-button" type="button" aria-label="新增住宿" disabled={!online || stays === null || !!error} onClick={() => setEditor({ stay: null, key: 0 })}><Icon name="plus" size={18} /><span>新增住宿</span></button></header>
-    <CacheControls online={online} blocked={!!editor} />
     {!online && <p role="status">目前離線，住宿為唯讀。{stays === null ? "連線後即可讀取住宿資料。" : repository.lastSyncedAt ? `最後同步：${new Date(repository.lastSyncedAt).toLocaleString("zh-TW")}` : ""}</p>}
     {error ? <section className="card section-card"><p role="alert">{error}</p><button className="secondary-button" type="button" disabled={!online} onClick={() => setRetry((value) => value + 1)}>重新載入</button></section>
       : stays === null ? online && <p className="loading-state" role="status">正在讀取住宿…</p>
       : <StaysContent stays={stays} repository={repository} online={online} onEdit={online ? (stay) => setEditor({ stay, key: 0 }) : undefined} />}
     {editor && <StayDialog repository={repository} key={editor.key} stay={editor.stay} online={online} startDate={startDate} endDate={endDate}
       onClose={() => setEditor(null)} onSave={save} onDelete={remove} onReload={reloadEditor} />}
+    <CacheControls online={online} blocked={!!editor} />
   </main>;
 }
