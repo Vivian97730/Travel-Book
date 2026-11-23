@@ -29,14 +29,14 @@ function money(currency: ExpenseCurrency, minor: bigint, prefix = `${currency} `
   return `${prefix}${wholeNumber.format(minor / 100n)}${fraction ? `.${fraction}` : ""}`;
 }
 
-function groupExpenses(expenses: Expense[]) {
+export function groupExpenses(expenses: Expense[]) {
   const groups = new Map<string, Expense[]>();
   for (const expense of expenses) {
     const group = groups.get(expense.date);
     if (group) group.push(expense);
     else groups.set(expense.date, [expense]);
   }
-  return [...groups].sort(([a], [b]) => b.localeCompare(a));
+  return [...groups].sort(([a], [b]) => a.localeCompare(b));
 }
 
 function ExpenseGroup({ date, expenses, onEdit }: { date: string; expenses: Expense[]; onEdit(expense: Expense): void }) {
