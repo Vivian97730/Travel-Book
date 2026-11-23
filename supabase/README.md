@@ -60,3 +60,11 @@ select public.reset_trip_access_token('11111111-1111-4111-8111-111111111111');
 The function returns a new URL-safe token once and immediately revokes the previous token. Copy it directly into `https://vivian97730.github.io/Travel-Book/#/access/<token>` without saving it in source control, documentation, screenshots, or chat.
 
 Before pushing migrations to a project that already contains manually-created tables, run `supabase db pull --remote` and review the generated migration first. Never use `supabase db reset --remote` on the hosted project.
+
+## Expense accommodation category
+
+Apply `20261123010000_expense_accommodation.sql`, then deploy `travel-book-api`
+with the updated shared contracts before publishing the frontend. This adds
+「住宿」 immediately before 「機票」 without changing existing expense rows.
+Regression coverage: `packages/contracts/src/expenses.test.ts` and
+`supabase/tests/expenses_test.sql` (transaction rollback).

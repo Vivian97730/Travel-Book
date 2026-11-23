@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expenseCurrencies, parseExpenseAmountMinor, parseExpenseInput } from "./expenses.ts";
+import { expenseCategories, expenseCurrencies, parseExpenseAmountMinor, parseExpenseInput } from "./expenses.ts";
 
 const expense = {
   date: "2027-02-06",
@@ -10,6 +10,11 @@ const expense = {
 };
 
 describe("expense input", () => {
+  it("accepts accommodation and places it immediately before flights", () => {
+    expect(expenseCategories).toEqual(["食物", "交通", "景點", "逛街", "超市", "住宿", "機票"]);
+    expect(parseExpenseInput({ ...expense, category: "住宿" }).ok).toBe(true);
+  });
+
   it.each(expenseCurrencies)("accepts positive minor units for %s", (currency) => {
     expect(parseExpenseInput({ ...expense, currency })).toEqual({
       ok: true,

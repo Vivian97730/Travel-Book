@@ -212,6 +212,11 @@
   color: var(--danger);
 }
 
+.expense-icon.category-stay {
+  background: #e5dfcf;
+  color: #625537;
+}
+
 .itinerary-category-field {
   height: calc(1.55em + 1.4rem + 2px);
   padding: 0.7rem 2.6rem 0.7rem 0.9rem;

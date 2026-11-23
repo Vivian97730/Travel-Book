@@ -14,6 +14,7 @@ const categoryStyle = {
   景點: ["sight", "sight"],
   逛街: ["shop", "shopping"],
   超市: ["market", "market"],
+  住宿: ["bed", "stay"],
   機票: ["plane", "flight"],
 } as const satisfies Record<Expense["category"], readonly [IconName, string]>;
 

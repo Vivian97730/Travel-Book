@@ -22,6 +22,9 @@ begin
       'ea000000-0000-4000-8000-000000000003', 3512),
     ('ea000000-0000-4000-8000-000000000002', '2027-02-06', 'Train', '交通', 'HUF', 860000, null, null);
 
+  update app_private.expenses set category = '住宿' where title = 'Lunch';
+  assert (select category = '住宿' from app_private.expenses where title = 'Lunch'), 'accommodation category is supported';
+
   assert (select rate = 35.1234567890123456789 from app_private.exchange_rate_snapshots
     where id = 'ea000000-0000-4000-8000-000000000003'), 'rate retains decimal precision';
 
