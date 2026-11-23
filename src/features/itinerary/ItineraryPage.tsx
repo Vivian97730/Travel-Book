@@ -1,8 +1,9 @@
+import { PlaceSearchField } from "./PlaceSearchField";
 import { CacheControls, useCacheRevision } from "../cache/CacheContext";
 import { OfflineSnapshotStatus } from "../offline/OfflineSnapshotStatus";
 import type { SnapshotInfo } from "../offline/coreSnapshots";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
-import type { AccessTripSummary, ItineraryCategory, ItineraryItem, SaveTripDayItem, Stay, TripDay } from "@travel-book/contracts";
+import type { AccessTripSummary, ItineraryCategory, ItineraryItem, SaveTripDayItem, Stay, TripDay, PlaceSearchCandidate } from "@travel-book/contracts";
 import { Icon, type IconName } from "../../components/Icon";
 import { buildDateWindow, chooseDefaultDate } from "./dateWindow";
 import { ItineraryMap, type ItineraryMapLocation } from "./ItineraryMap";
@@ -141,11 +142,12 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
     if (!online || draftVersion === null) return;
     setSaving(true);
     setSaveFailure(null);
-    const items: SaveTripDayItem[] = draftItems.map(({ id, title, note, category }, sortOrder) => ({
+    const items: SaveTripDayItem[] = draftItems.map(({ id, title, note, category, place }, sortOrder) => ({
       id,
       title,
       note,
       category,
+      placeId: place?.id ?? null,
       sortOrder,
     }));
     try {
@@ -179,7 +181,7 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
     }
   }
 
-  function saveDraftItem(value: Pick<ItineraryItem, "title" | "note" | "category">) {
+  function saveDraftItem(value: Pick<ItineraryItem, "title" | "note" | "category" | "place">) {
     setDraftItems((current) => {
       if (formItem) {
         return current.map((item) => item.id === formItem.id ? { ...item, ...value } : item);
@@ -188,7 +190,6 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
         id: crypto.randomUUID(),
         ...value,
         sortOrder: current.length,
-        place: null,
       }];
     });
     setFormItem(undefined);
@@ -235,7 +236,7 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
       busy={saving}
       onRecover={saveFailure.kind === "conflict" ? reloadAfterConflict : finishEditing}
     />}
-    {online && formItem !== undefined && <ItineraryItemFormDialog item={formItem} onCancel={() => setFormItem(undefined)} onSubmit={saveDraftItem} />}
+    {online && formItem !== undefined && <ItineraryItemFormDialog item={formItem} city={day.city} searchPlaces={repository.searchPlaces?.bind(repository)} onCancel={() => setFormItem(undefined)} onSubmit={saveDraftItem} />}
   </>;
 }
 
@@ -451,24 +452,28 @@ function useDialogAccessibility(onClose: () => void) {
   return dialogRef;
 }
 
-export function ItineraryItemFormDialog({ item, onCancel, onSubmit }: {
+export function ItineraryItemFormDialog({ item, city = "", searchPlaces, onCancel, onSubmit }: {
+  city?: string;
+  searchPlaces?: (query: string, city: string) => Promise<PlaceSearchCandidate[]>;
   item: ItineraryItem | null;
   onCancel(): void;
-  onSubmit(value: Pick<ItineraryItem, "title" | "note" | "category">): void;
+  onSubmit(value: Pick<ItineraryItem, "title" | "note" | "category" | "place">): void;
 }) {
   const dialogRef = useDialogAccessibility(onCancel);
+  const [place, setPlace] = useState(item?.place ?? null);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     onSubmit({
+      place,
       title: String(data.get("title")).trim(),
       note: String(data.get("note")).trim(),
       category: String(data.get("category")) as ItineraryCategory,
     });
   }
 
-  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="itinerary-edit-title"><form className="dialog-form" onSubmit={submit}><header className="dialog-head"><h2 id="itinerary-edit-title">{item ? "修改行程" : "新增行程"}</h2><button className="icon-button" type="button" onClick={onCancel} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="itinerary-title">行程名稱</label><input className="field" id="itinerary-title" name="title" required maxLength={80} defaultValue={item?.title ?? ""} data-dialog-initial-focus /></div><div className="field-group"><label htmlFor="itinerary-note">內容</label><textarea className="field" id="itinerary-note" name="note" required maxLength={300} defaultValue={item?.note ?? ""} /></div><div className="field-group"><label htmlFor="itinerary-category">類別</label><select className="field itinerary-category-field" id="itinerary-category" name="category" defaultValue={item?.category ?? "transit"}><option value="transit">交通</option><option value="sight">景點</option><option value="food">食物</option><option value="stay">住宿</option><option value="shopping">逛街</option></select></div><div className="dialog-actions"><button className="secondary-button" type="button" onClick={onCancel}>取消</button><button className="primary-button" type="submit">儲存</button></div></form></section></div>;
+  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="itinerary-edit-title"><form className="dialog-form" onSubmit={submit}><header className="dialog-head"><h2 id="itinerary-edit-title">{item ? "修改行程" : "新增行程"}</h2><button className="icon-button" type="button" onClick={onCancel} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="itinerary-title">行程名稱</label><input className="field" id="itinerary-title" name="title" required maxLength={80} defaultValue={item?.title ?? ""} data-dialog-initial-focus /></div><div className="field-group"><label htmlFor="itinerary-note">內容</label><textarea className="field" id="itinerary-note" name="note" required maxLength={300} defaultValue={item?.note ?? ""} /></div><div className="field-group"><label htmlFor="itinerary-category">類別</label><select className="field itinerary-category-field" id="itinerary-category" name="category" defaultValue={item?.category ?? "transit"}><option value="transit">交通</option><option value="sight">景點</option><option value="food">食物</option><option value="stay">住宿</option><option value="shopping">逛街</option></select></div>{searchPlaces && <PlaceSearchField initialQuery={item?.place?.name ?? item?.title ?? ""} city={city} place={place} search={searchPlaces} onSelect={setPlace} />}<div className="dialog-actions"><button className="secondary-button" type="button" onClick={onCancel}>取消</button><button className="primary-button" type="submit">儲存</button></div></form></section></div>;
 }
 
 

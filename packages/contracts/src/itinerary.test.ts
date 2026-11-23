@@ -96,3 +96,13 @@ describe("save trip day request contract", () => {
     });
   });
 });
+
+it("accepts selected place IDs or removal, and rejects arbitrary coordinate objects", () => {
+  const item = { id: "20000000-0000-4000-8000-000000000001", title: "景點", note: "內容", category: "sight", sortOrder: 0 };
+  for (const placeId of [undefined, null, "30000000-0000-4000-8000-000000000001"]) {
+    expect(parseSaveTripDayRequest({ expectedVersion: 1, items: [{ ...item, placeId }] }).ok).toBe(true);
+  }
+  for (const placeId of ["unverified-place", { latitude: 10, longitude: 20 }]) {
+    expect(parseSaveTripDayRequest({ expectedVersion: 1, items: [{ ...item, placeId }] }).ok).toBe(false);
+  }
+});

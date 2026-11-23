@@ -26,6 +26,10 @@ export function snapshotRepositories(
   }
 
   const itineraryRepository: ItineraryRepository = {
+    searchPlaces: itinerary.searchPlaces ? async (query, city) => {
+      requireOnline();
+      return itinerary.searchPlaces!(query, city);
+    } : undefined,
     async getDay(date) {
       const resource = "day:" + date;
       const revision = revisions.get(resource) ?? 0;

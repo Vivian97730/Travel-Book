@@ -23,7 +23,7 @@ export class FakeItineraryRepository implements ItineraryRepository {
     const saved: TripDay = {
       ...current,
       version: current.version + 1,
-      items: items.map((item) => ({ ...item, place: structuredClone(placesByItemId.get(item.id) ?? null) })),
+      items: items.map((item) => ({ ...item, place: item.placeId === null ? null : structuredClone(placesByItemId.get(item.id) ?? null) })),
     };
     this.days.set(date, structuredClone(saved));
     return structuredClone(saved);

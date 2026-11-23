@@ -11,6 +11,10 @@ export class ApiItineraryRepository implements ItineraryRepository {
     this.client = new ApiClient(baseUrl, fetcher);
   }
 
+  searchPlaces(query: string, city: string) {
+    return this.client.searchPlaces(this.accessToken, query, city);
+  }
+
   getDay(date: string): Promise<TripDay> {
     return this.client.getTripDay(this.accessToken, date);
   }

@@ -6,7 +6,7 @@ function setup() {
   let online = true;
   const day = { date: "2027-02-05", version: 1, weekday: "五", city: "維也納", summary: "", items: [] };
   const list = { schemaVersion: 1 as const, version: 1, items: [] };
-  const itinerary = { getDay: vi.fn(async () => day), saveDayItems: vi.fn(async () => day) };
+  const itinerary = { searchPlaces: vi.fn(async () => []), getDay: vi.fn(async () => day), saveDayItems: vi.fn(async () => day) };
   const checklist = { getSharedChecklist: vi.fn(async () => list), mutateSharedChecklist: vi.fn(async () => list) };
   const store = {
     put: vi.fn(async () => undefined),
@@ -65,4 +65,17 @@ it("does not let a late day GET overwrite a newer saved offline snapshot", async
   await core.itineraryRepository.saveDayItems(day.date, [], 1);
   resolve(day); await pending;
   expect(store.put).toHaveBeenCalledExactlyOnceWith(hash, "day:" + day.date, saved);
+});
+
+
+it("forwards explicit place searches only while the trip is active and online", async () => {
+  const {core,itinerary,goOffline}=setup();
+  await expect(core.itineraryRepository.searchPlaces!("Church","Wien")).resolves.toEqual([]);
+  expect(itinerary.searchPlaces).toHaveBeenCalledWith("Church","Wien");
+  goOffline();
+  await expect(core.itineraryRepository.searchPlaces!("Church","Wien")).rejects.toThrow("OFFLINE_READ_ONLY");
+  expect(itinerary.searchPlaces).toHaveBeenCalledOnce();
+  const second=setup(); await second.core.revoke();
+  await expect(second.core.itineraryRepository.searchPlaces!("Church","Wien")).rejects.toThrow("OFFLINE_READ_ONLY");
+  expect(second.itinerary.searchPlaces).not.toHaveBeenCalled();
 });

@@ -14,6 +14,7 @@ export function cachedHome(source: HomeRepository, cache: ResourceCache): HomeRe
 }
 export function cachedItinerary(source: ItineraryRepository, cache: ResourceCache): ItineraryRepository {
   return {
+    searchPlaces: source.searchPlaces ? (query, city) => cache.authorize(() => source.searchPlaces!(query, city)) : undefined,
     getDay: (date) => cache.read(`day:${date}`, () => source.getDay(date), (data) => { const p = parseTripDay(data); return p.ok && p.value.date === date ? p.value : null; }),
     saveDayItems: (date, items, version) => cache.mutate(`day:${date}`, () => source.saveDayItems(date, items, version), (data) => cache.set(`day:${date}`, data)),
   };

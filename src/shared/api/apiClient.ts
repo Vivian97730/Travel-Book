@@ -1,5 +1,7 @@
 import {
   parseAccessVerifyResponse,
+  parsePlaceSearchCandidates,
+  type PlaceSearchCandidate,
   parseApiError,
   parseSaveTravelFactsRequest,
   parseTripHome,
@@ -69,6 +71,30 @@ export class ApiClient {
     if (!parsed.ok) {
       throw new ApiClientError("EXTERNAL_SERVICE_UNAVAILABLE", "伺服器回應格式不正確。", requestId, { issues: parsed.issues });
     }
+    return parsed.value;
+  }
+
+  async searchPlaces(token: string, query: string, city: string): Promise<PlaceSearchCandidate[]> {
+    const requestId = crypto.randomUUID();
+    let response: Response;
+    try {
+      const fetcher = this.fetcher;
+      response = await fetcher(`${this.baseUrl}/v1/places/search`, {
+        method: "POST", cache: "no-store",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "x-request-id": requestId },
+        body: JSON.stringify({ query, city }),
+      });
+    } catch {
+      throw new ApiClientError("EXTERNAL_SERVICE_UNAVAILABLE", "地點搜尋暫時無法使用，仍可儲存行程。", requestId);
+    }
+    const body: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const parsed = parseApiError(body);
+      if (parsed.ok) throw new ApiClientError(parsed.value.error.code, parsed.value.error.message, requestId);
+      throw new ApiClientError("EXTERNAL_SERVICE_UNAVAILABLE", "地點搜尋暫時無法使用。", requestId);
+    }
+    const parsed = parsePlaceSearchCandidates(body);
+    if (!parsed.ok) throw new ApiClientError("EXTERNAL_SERVICE_UNAVAILABLE", "地點搜尋結果格式不正確。", requestId);
     return parsed.value;
   }
 
