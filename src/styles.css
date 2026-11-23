@@ -207,7 +207,8 @@
   font-size: 0.72rem;
 }
 
-.timeline-icon.category-stay {
+.timeline-icon.category-stay,
+.expense-icon.category-stay {
   background: var(--coral-soft);
   color: var(--danger);
 }

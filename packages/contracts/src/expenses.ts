@@ -1,7 +1,7 @@
 import { isRecord, type ParseResult, type ValidationIssue } from "./validation.ts";
 
 export const expenseCurrencies = ["TWD", "EUR", "HUF"] as const;
-export const expenseCategories = ["食物", "交通", "景點", "逛街", "超市", "機票"] as const;
+export const expenseCategories = ["食物", "交通", "景點", "逛街", "超市", "住宿", "機票"] as const;
 export type ExpenseCurrency = typeof expenseCurrencies[number];
 export type ForeignExpenseCurrency = Exclude<ExpenseCurrency, "TWD">;
 export type ExpenseCategory = typeof expenseCategories[number];
