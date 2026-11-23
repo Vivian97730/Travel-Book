@@ -1,5 +1,5 @@
 import { parsePlaceSearchCandidates, isRecord, type PlaceSearchCandidate } from "../../../../../packages/contracts/src/index.ts";
-import type { PlaceSearchCache } from "../../modules/places/placeSearch.ts";
+import { PlaceSearchFailure, type PlaceSearchCache } from "../../modules/places/placeSearch.ts";
 
 export class SupabasePlaceSearchCache implements PlaceSearchCache {
   constructor(private readonly baseUrl: string, private readonly secretKey: string, private readonly fetcher: typeof fetch = fetch) {}
@@ -9,8 +9,9 @@ export class SupabasePlaceSearchCache implements PlaceSearchCache {
       method: "POST", headers: { apikey: this.secretKey, "content-type": "application/json" }, body: JSON.stringify(body),
       signal: AbortSignal.timeout(5000),
     });
-    if (!response.ok) throw new Error("PLACE_SEARCH_CACHE_UNAVAILABLE");
-    return response.json();
+    if (!response.ok) throw new PlaceSearchFailure("cache", response.status);
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
   }
   async claim(tripId: string, key: string, lease: string): ReturnType<PlaceSearchCache["claim"]> {
     const result = await this.rpc("claim_place_search", { p_trip_id: tripId, p_key: key, p_lease: lease });

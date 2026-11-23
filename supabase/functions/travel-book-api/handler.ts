@@ -1,4 +1,4 @@
-import { PlaceSearchBusy } from "./modules/places/placeSearch.ts";
+import { PlaceSearchBusy, PlaceSearchFailure } from "./modules/places/placeSearch.ts";
 import { parsePlaceSearchRequest, type PlaceSearchCandidate, type PlaceSearchRequest } from "../../../packages/contracts/src/places.ts";
 import { SharedChecklistStoreError } from "./adapters/postgres/sharedChecklistStore.ts";
 import { ExpenseMutationError } from "./adapters/postgres/expensesStore.ts";
@@ -192,6 +192,7 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
         else response = json(await dependencies.placeSearch.search(verified.trip.id, parsed.value), 200, privateHeaders);
       }
     } catch (error) {
+      if (error instanceof PlaceSearchFailure) dependencies.log({ requestId, event: "place_search_failed", phase: error.phase, ...(error.status ? { upstreamStatus: error.status } : {}) });
       response = error instanceof PlaceSearchBusy
         ? apiError("RATE_LIMITED", "地點搜尋忙碌中，請稍後再試。", requestId, 429, { ...privateHeaders, "retry-after": "2" })
         : apiError("EXTERNAL_SERVICE_UNAVAILABLE", "地點搜尋暫時無法使用，仍可儲存行程後再補地點。", requestId, 503, privateHeaders);
