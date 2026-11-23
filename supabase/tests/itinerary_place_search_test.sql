@@ -6,8 +6,8 @@ select table_privs_are('app_private','place_search_cache','anon',array[]::text[]
 select function_privs_are('public','claim_place_search',array['uuid','text','uuid'],'authenticated',array[]::text[],'authenticated cannot bypass the Edge authorization');
 select function_privs_are('public','finish_place_search',array['uuid','text','uuid','jsonb'],'anon',array[]::text[],'anon cannot forge candidates');
 
-insert into app_private.trips(id,title,start_date,end_date,display_timezone)
-values('99999999-9999-4999-8999-999999999999','Search isolation fixture','2027-02-05','2027-02-15','Europe/Vienna');
+insert into app_private.trips(id,title,traveler_count,start_date,end_date,display_timezone)
+values('99999999-9999-4999-8999-999999999999','Search isolation fixture',4,'2027-02-05','2027-02-15','Europe/Vienna');
 select is(public.claim_place_search('11111111-1111-4111-8111-111111111111','church, wien','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')->>'status','claimed','first search obtains the durable lease');
 select is(public.claim_place_search('99999999-9999-4999-8999-999999999999','other, wien','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')->>'status','busy','another trip cannot overlap upstream calls');
 select throws_ok($$select public.finish_place_search('11111111-1111-4111-8111-111111111111','church, wien','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','[]')$$,'22023','SEARCH_LEASE_EXPIRED','wrong lease cannot release the gate');
