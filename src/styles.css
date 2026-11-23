@@ -207,10 +207,14 @@
   font-size: 0.72rem;
 }
 
-.timeline-icon.category-stay,
-.expense-icon.category-stay {
+.timeline-icon.category-stay {
   background: var(--coral-soft);
   color: var(--danger);
+}
+
+.expense-icon.category-stay {
+  background: #e5dfcf;
+  color: #625537;
 }
 
 .itinerary-category-field {
