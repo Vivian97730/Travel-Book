@@ -1,3 +1,5 @@
+import { PlaceSearchBusy } from "./modules/places/placeSearch.ts";
+import { parsePlaceSearchRequest, type PlaceSearchCandidate, type PlaceSearchRequest } from "../../../packages/contracts/src/places.ts";
 import { SharedChecklistStoreError } from "./adapters/postgres/sharedChecklistStore.ts";
 import { ExpenseMutationError } from "./adapters/postgres/expensesStore.ts";
 import { isRateRequestCurrency, isRateRequestDate } from "./modules/rates/ratesService.ts";
@@ -55,6 +57,7 @@ export interface HomeStore {
 }
 
 export interface HandlerDependencies {
+  placeSearch?: { search(tripId: string, input: PlaceSearchRequest): Promise<PlaceSearchCandidate[]> };
   memberStore?: {
     getMembers(tripId: string): Promise<TripMember[]>;
     forMember(memberId: string, kind: string): HandlerDependencies["sharedChecklistStore"];
@@ -175,6 +178,23 @@ export async function handleRequest(request: Request, dependencies: HandlerDepen
     } catch (error) {
       upstreamStatus = safeUpstreamStatus(error);
       response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "服務暫時無法使用，請稍後再試。", requestId, 503, headers);
+    }
+  } else if (request.method === "POST" && url.pathname.endsWith("/v1/places/search")) {
+    const privateHeaders = { ...headers, "cache-control": "no-store" };
+    try {
+      const token = bearerToken(request);
+      const verified = token ? await dependencies.accessStore.verify(token) : null;
+      if (!verified) response = apiError("ACCESS_DENIED", "私人連結無效或已撤銷。", requestId, 401, privateHeaders);
+      else {
+        const parsed = parsePlaceSearchRequest(await request.json().catch(() => null));
+        if (!parsed.ok) response = apiError("VALIDATION_FAILED", "請輸入地點名稱與城市。", requestId, 422, privateHeaders);
+        else if (!dependencies.placeSearch) response = apiError("EXTERNAL_SERVICE_UNAVAILABLE", "地點搜尋暫時無法使用。", requestId, 503, privateHeaders);
+        else response = json(await dependencies.placeSearch.search(verified.trip.id, parsed.value), 200, privateHeaders);
+      }
+    } catch (error) {
+      response = error instanceof PlaceSearchBusy
+        ? apiError("RATE_LIMITED", "地點搜尋忙碌中，請稍後再試。", requestId, 429, { ...privateHeaders, "retry-after": "2" })
+        : apiError("EXTERNAL_SERVICE_UNAVAILABLE", "地點搜尋暫時無法使用，仍可儲存行程後再補地點。", requestId, 503, privateHeaders);
     }
   } else if ((request.method === "POST" && url.pathname.endsWith("/v1/stay-photos"))
     || ((request.method === "GET" || request.method === "DELETE") && /\/v1\/stay-photos\/[^/]+$/.test(url.pathname))) {

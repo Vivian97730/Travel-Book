@@ -29,6 +29,8 @@ export interface TripDay {
 }
 
 export interface SaveTripDayItem {
+  /** Omitted preserves the existing link; null explicitly removes it. */
+  placeId?: string | null;
   id: string;
   title: string;
   note: string;
@@ -137,6 +139,9 @@ export function parseSaveTripDayRequest(input: unknown): ParseResult<SaveTripDay
       }
       if (typeof item.id !== "string" || !uuidPattern.test(item.id)) {
         issues.push({ path: `${path}.id`, message: "行程項目 ID 格式不正確。" });
+      }
+      if (item.placeId !== undefined && item.placeId !== null && (typeof item.placeId !== "string" || !uuidPattern.test(item.placeId))) {
+        issues.push({ path: `${path}.placeId`, message: "地點 ID 格式不正確。" });
       }
       requireText(item.title, `${path}.title`, "行程名稱", issues);
       requireText(item.note, `${path}.note`, "行程內容", issues);

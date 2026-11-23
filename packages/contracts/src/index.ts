@@ -8,3 +8,4 @@ export * from "./validation.ts";
 export * from "./stays.ts";
 export * from "./sharedChecklist.ts";
 export * from "./members.ts";
+export * from "./places.ts";

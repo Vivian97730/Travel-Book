@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Stay, StayInput } from "@travel-book/contracts";
 import { ResourceCache, TEXT_FRESH_MS } from "./resourceCache";
-import { cachedHome, cachedStays, cachedChecklist } from "./cachedRepositories";
+import { cachedHome, cachedStays, cachedChecklist, cachedItinerary } from "./cachedRepositories";
 import { initialTripHome } from "../home/data";
 import { ApiHomeRepository } from "../home/apiHomeRepository";
 import { ApiStaysRepository } from "../stays/apiStaysRepository";
@@ -72,4 +72,15 @@ describe("cached repository integration", () => {
     expect((await mother.getSharedChecklist()).version).toBe(2); expect((await father.getSharedChecklist()).version).toBe(1);
     now += TEXT_FRESH_MS; await mother.getSharedChecklist(); await vi.waitFor(() => expect(a.getSharedChecklist).toHaveBeenCalledTimes(2));
   });
+});
+
+
+it("forwards place search through authorization handling rather than the day cache", async () => {
+  const denied=vi.fn();const cache=new ResourceCache(undefined,undefined,denied);
+  const searchPlaces=vi.fn(async () => []);
+  const repository=cachedItinerary({getDay:vi.fn(),saveDayItems:vi.fn(),searchPlaces},cache);
+  await repository.searchPlaces!("Church","Wien");await repository.searchPlaces!("Church","Wien");
+  expect(searchPlaces).toHaveBeenCalledTimes(2);
+  searchPlaces.mockRejectedValueOnce(Object.assign(new Error("denied"),{code:"ACCESS_DENIED"}));
+  await expect(repository.searchPlaces!("Church","Wien")).rejects.toThrow("denied");expect(denied).toHaveBeenCalledOnce();
 });

@@ -80,3 +80,16 @@ describe("API ItineraryRepository", () => {
     });
   });
 });
+
+it("searches via the authenticated backend and validates candidate coordinates", async () => {
+  const candidate = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Church", address: "Wien", latitude: 48.2, longitude: 16.3, mapUrl: "https://www.openstreetmap.org/way/123" };
+  const fetcher = vi.fn(async function(this: unknown) {
+    if (this !== undefined) throw new Error("Fetcher must be called without a receiver");
+    return Response.json([candidate]);
+  });
+  const repository = new ApiItineraryRepository("https://api.example", "private-token", fetcher);
+  await expect(repository.searchPlaces("Church", "Wien")).resolves.toEqual([candidate]);
+  expect(fetcher).toHaveBeenCalledWith("https://api.example/v1/places/search", expect.objectContaining({ method: "POST", body: JSON.stringify({ query: "Church", city: "Wien" }), headers: expect.objectContaining({ authorization: "Bearer private-token" }) }));
+  fetcher.mockResolvedValueOnce(Response.json([{ ...candidate, longitude: 181 }]));
+  await expect(repository.searchPlaces("Church", "Wien")).rejects.toMatchObject({ code: "EXTERNAL_SERVICE_UNAVAILABLE" });
+});

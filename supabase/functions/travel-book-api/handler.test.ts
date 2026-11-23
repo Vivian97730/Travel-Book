@@ -1,3 +1,4 @@
+import { PlaceSearchBusy } from "./modules/places/placeSearch";
 import { describe, expect, it, vi } from "vitest";
 import { parseApiError } from "../../../packages/contracts/src/errors";
 import { ApiSharedChecklistRepository } from "../../../src/features/checklists/apiSharedChecklistRepository";
@@ -723,4 +724,29 @@ describe("family member checklist authorization", () => {
     }, body: JSON.stringify({ isDone: true, expectedVersion: 1 }) }), deps);
     expect(response.status).toBe(409);
   });
+});
+
+it("authenticates and scopes explicit place searches without logging query text", async () => {
+  const deps = dependencies();
+  deps.placeSearch = { search: vi.fn(async () => []) };
+  const url = "https://example.test/v1/places/search";
+  const make = (body: unknown, authorized = true) => new Request(url, { method: "POST", headers: { "content-type": "application/json", ...(authorized ? { authorization: "Bearer test-token" } : {}) }, body: JSON.stringify(body) });
+  expect((await handleRequest(make({ query: "Church", city: "Wien" }, false), deps)).status).toBe(401);
+  expect(deps.placeSearch.search).not.toHaveBeenCalled();
+  expect((await handleRequest(make({ query: "x", city: "Wien" }), deps)).status).toBe(422);
+  expect(deps.placeSearch.search).not.toHaveBeenCalled();
+  const result = await handleRequest(make({ query: "Stephansdom", city: "Wien", tripId: "another-trip" }), deps);
+  expect(result.status).toBe(200);
+  expect(result.headers.get("cache-control")).toBe("no-store");
+  expect(deps.placeSearch.search).toHaveBeenCalledWith(verifiedAccess.trip.id, { query: "Stephansdom", city: "Wien" });
+  expect(JSON.stringify(vi.mocked(deps.log).mock.calls)).not.toContain("Stephansdom");
+});
+
+
+it("returns safe retryable place-search errors without echoing provider details", async () => {
+  const deps=dependencies(); const search=vi.fn(async () => { throw new PlaceSearchBusy(); }); deps.placeSearch={search};
+  const make=()=>new Request("https://example.test/v1/places/search",{method:"POST",headers:{authorization:"Bearer test-token","content-type":"application/json"},body:JSON.stringify({query:"Church",city:"Wien"})});
+  const busy=await handleRequest(make(),deps);expect(busy.status).toBe(429);expect(busy.headers.get("retry-after")).toBe("2");
+  search.mockRejectedValueOnce(new Error("private-provider-detail"));
+  const failed=await handleRequest(make(),deps);expect(failed.status).toBe(503);expect(await failed.text()).not.toContain("private-provider-detail");
 });
