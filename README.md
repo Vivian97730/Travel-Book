@@ -137,9 +137,9 @@ Prototype 的所有修改只存在記憶體，重新整理後會還原。
 
 ## 家庭角色與個人清單
 
-行程授權後選擇爸爸、媽媽、弟弟或我；頁首目前角色按鈕可切換使用者。角色不是登入憑證，所有 API 仍需有效私人連結。行李與待辦依行程、成員存於 Supabase；必備清單維持全家共享。舊裝置清單保留，只有明確確認歸屬後才匯入。離線僅讀已快取資料。
+行程授權後選擇爸爸、媽媽、弟弟或我；頁首目前角色按鈕可切換使用者。角色不是登入憑證，所有 API 仍需有效私人連結。行李與待辦依行程、成員存於 Supabase；必備清單的項目名稱與新增／刪除維持全家共享，但勾選狀態及進度依角色分開保存。舊裝置清單保留，只有明確確認歸屬後才匯入。離線僅讀已快取資料。
 
-本功能須先套用 `20261118020000_member_checklists.sql`、部署新版 API，再發布前端。資料回復、驗收限制與 iPhone 手動步驟見 [POST-03 驗收紀錄](tests/manual/member-checklists.md)。
+本功能須先套用 `20261118020000_member_checklists.sql` 與 `20261124020000_member_essential_progress.sql`、部署新版 API，再發布前端。資料回復、驗收限制與 iPhone 手動步驟見 [POST-03 驗收紀錄](tests/manual/member-checklists.md)。
 
 ### 行程地點搜尋與座標
 
@@ -156,3 +156,4 @@ Prototype 的所有修改只存在記憶體，重新整理後會還原。
 
 
 公開圖資服務的 User-Agent 使用本專案專屬識別與 GitHub Issues 聯絡入口，Referer 固定為公開 App 網址，不包含私人 fragment。遵循 [Photon 維護者的應用識別說明](https://community.openstreetmap.org/t/getting-403-response-when-calling-the-api-endpoint-via-a-specific-device/141345/5)，不偽裝瀏覽器、變更來源 IP 或繞過服務封鎖。拒絕回應只記錄供應商、HTTP 狀態與固定原因分類，不保存回應內容或查詢。
+必備清單進度存於 `member_essential_progress`，使用行程、成員與項目複合鍵；三種清單都由角色 API 讀取，快取與離線快照依角色隔離。舊版共用勾選無法辨識操作者，因此保留原資料但不複製成任何角色的完成紀錄。角色「我」採與媽媽不同的女生短髮頭像。

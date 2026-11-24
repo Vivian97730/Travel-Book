@@ -12,17 +12,17 @@ export class MemberChecklistRepository implements PersonalChecklistRepository {
   private active = true;
   private stopping: Promise<void> | null = null;
   private saving: Promise<void> = Promise.resolve();
-  private readonly versions = new Map<PersonalChecklistKind, number>();
+  private readonly versions = new Map<PersonalChecklistKind | "essentials", number>();
   private readonly snapshots = new CoreSnapshots();
-  private readonly repositories = new Map<PersonalChecklistKind, SharedChecklistRepository>();
+  private readonly repositories = new Map<PersonalChecklistKind | "essentials", SharedChecklistRepository>();
   constructor(private readonly base: string, private readonly token: string,
     private readonly tokenHash: string, private readonly tripId: string, private readonly memberId: string,
     private readonly online: () => boolean = () => navigator.onLine, private readonly cache?: ResourceCache) {}
-  private resource(kind: PersonalChecklistKind) { return `personal:${this.tripId}:${this.memberId}:${kind}`; }
-  readSnapshotInfo(kind: PersonalChecklistKind) {
+  private resource(kind: PersonalChecklistKind | "essentials") { return `personal:${this.tripId}:${this.memberId}:${kind}`; }
+  readSnapshotInfo(kind: PersonalChecklistKind | "essentials") {
     return this.snapshots.get(this.tokenHash, this.resource(kind));
   }
-  forKind(kind: PersonalChecklistKind): SharedChecklistRepository {
+  forKind(kind: PersonalChecklistKind | "essentials"): SharedChecklistRepository {
     const existing = this.repositories.get(kind);
     if (existing) return existing;
     const api = new ApiSharedChecklistRepository(this.base, this.token, fetch,
@@ -73,8 +73,8 @@ export class MemberChecklistRepository implements PersonalChecklistRepository {
   stop(): Promise<void> {
     if (this.stopping) return this.stopping;
     this.stopping = this.stopSaving().then(async () => {
-      await Promise.all((["luggage", "todos"] as const).map((kind) => this.cache?.invalidate(this.resource(kind))));
-      await Promise.all((["luggage", "todos"] as const).map((kind) =>
+      await Promise.all((["essentials", "luggage", "todos"] as const).map((kind) => this.cache?.invalidate(this.resource(kind))));
+      await Promise.all((["essentials", "luggage", "todos"] as const).map((kind) =>
         this.snapshots.deleteResource(this.tokenHash, this.resource(kind))));
     });
     return this.stopping;

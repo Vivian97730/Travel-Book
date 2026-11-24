@@ -154,7 +154,7 @@ function safeHomeStoreCode(error: unknown): "RESOURCE_NOT_FOUND" | "VERSION_CONF
 export async function handleRequest(request: Request, dependencies: HandlerDependencies): Promise<Response> {
   const url = new URL(request.url);
   const requestId = requestIdFor(request);
-  const memberPath = /\/v1\/members\/([^/]+)\/checklists\/(luggage|todos)(?:\/([^/]+))?$/.exec(url.pathname);
+  const memberPath = /\/v1\/members\/([^/]+)\/checklists\/(essentials|luggage|todos)(?:\/([^/]+))?$/.exec(url.pathname);
   const membersPath = url.pathname.endsWith("/v1/members");
   const checklistPath = /\/v1\/checklists\/shared(?:\/([^/]+))?$/.exec(url.pathname);
   const origin = request.headers.get("origin");

@@ -711,12 +711,12 @@ describe("family member checklist authorization", () => {
     expect(store.getSharedChecklist).not.toHaveBeenCalled();
     expect(store.mutateSharedChecklist).not.toHaveBeenCalled();
   });
-  it("derives the trip exclusively from verified access and preserves version conflicts", async () => {
+  it.each(["essentials", "luggage", "todos"])("scopes %s to verified access and preserves version conflicts", async (kind) => {
     const { deps, store } = setup();
-    const path = `https://api.test/v1/members/${memberId}/checklists/luggage`;
+    const path = `https://api.test/v1/members/${memberId}/checklists/${kind}`;
     expect((await handleRequest(new Request(path, { headers: { authorization: "Bearer synthetic" } }), deps)).status).toBe(200);
     expect(deps.memberStore!.getMembers).toHaveBeenCalledWith(verifiedAccess.trip.id);
-    expect(deps.memberStore!.forMember).toHaveBeenCalledWith(memberId, "luggage");
+    expect(deps.memberStore!.forMember).toHaveBeenCalledWith(memberId, kind);
     expect(store.getSharedChecklist).toHaveBeenCalledWith(verifiedAccess.trip.id);
     store.mutateSharedChecklist.mockRejectedValue(new SharedChecklistStoreError("VERSION_CONFLICT"));
     const response = await handleRequest(new Request(`${path}/${memberId}`, { method: "PATCH", headers: {
