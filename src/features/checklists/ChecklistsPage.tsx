@@ -163,8 +163,8 @@ function ChecklistPanel({ source, online, onTab, readSnapshotInfo }: {
     </nav>
     <section className="card section-card" aria-labelledby="list-title">
       <div className="section-head"><div><h2 id="list-title">{label}</h2>
-        <p>{shared ? "修改後會同步給全家" : "目前角色的個人清單，可跨裝置恢復"}</p></div>
-        <span className="sync-chip">{shared ? "全家同步" : "角色同步"}</span>
+        <p>{shared ? "項目全家共用，勾選進度依角色保存" : "目前角色的個人清單，可跨裝置恢復"}</p></div>
+        <span className="sync-chip">{shared ? "角色同步" : "角色同步"}</span>
       </div>
       {offline && readSnapshotInfo && <OfflineSnapshotStatus read={readSnapshotInfo} />}
       {state.kind === "loading" ? <p className="inline-notice" role="status">正在讀取清單…</p> : null}

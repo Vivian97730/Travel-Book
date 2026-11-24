@@ -13,22 +13,22 @@ function snapshots() {
   vi.spyOn(CoreSnapshots.prototype, "deleteResource").mockResolvedValue(undefined);
 }
 describe("member checklist isolation and recovery", () => {
-  it("scopes requests and caches by trip, member and kind; sends optimistic versions and retry keys", async () => {
+  it.each(["essentials", "luggage", "todos"] as const)("scopes %s requests and caches by trip, member and kind; sends optimistic versions and retry keys", async (kind) => {
     snapshots();
     const fetcher = vi.fn(async () => new Response(JSON.stringify(data)));
     vi.stubGlobal("fetch", fetcher);
     const repository = new MemberChecklistRepository("https://api.test", "synthetic", "hash", "trip-a", mother, () => true);
-    await repository.forKind("luggage").getSharedChecklist();
+    await repository.forKind(kind).getSharedChecklist();
     const key = crypto.randomUUID();
-    await writeChecklist({ kind: "luggage", repository }, { action: "toggle", item }, key, [item]);
+    await writeChecklist({ kind: "essentials", repository: repository.forKind(kind) }, { action: "toggle", item }, key, [item]);
     const [url, init] = fetcher.mock.calls[1] as unknown as [string, RequestInit];
-    expect(url).toContain(`/members/${mother}/checklists/luggage/${item.id}`);
+    expect(url).toContain(`/members/${mother}/checklists/${kind}/${item.id}`);
     expect(JSON.parse(init.body as string)).toEqual({ isDone: false, expectedVersion: 3 });
     expect(init.headers).toMatchObject({ "idempotency-key": key, authorization: "Bearer synthetic" });
-    expect(CoreSnapshots.prototype.put).toHaveBeenCalledWith("hash", `personal:trip-a:${mother}:luggage`, data);
+    expect(CoreSnapshots.prototype.put).toHaveBeenCalledWith("hash", `personal:trip-a:${mother}:${kind}`, data);
     await repository.stop();
-    expect(CoreSnapshots.prototype.deleteResource).toHaveBeenCalledWith("hash", `personal:trip-a:${mother}:luggage`);
-    await expect(repository.forKind("luggage").getSharedChecklist()).rejects.toThrow("MEMBER_CHANGED");
+    expect(CoreSnapshots.prototype.deleteResource).toHaveBeenCalledWith("hash", `personal:trip-a:${mother}:${kind}`);
+    await expect(repository.forKind(kind).getSharedChecklist()).rejects.toThrow("MEMBER_CHANGED");
     const next = new MemberChecklistRepository("https://api.test", "synthetic", "hash", "trip-a", father, () => true);
     await next.forKind("todos").getSharedChecklist();
     expect(CoreSnapshots.prototype.put).toHaveBeenLastCalledWith("hash", `personal:trip-a:${father}:todos`, data);
@@ -51,7 +51,7 @@ describe("member checklist isolation and recovery", () => {
     expect(CoreSnapshots.prototype.deleteResource).not.toHaveBeenCalled();
     await expect(repository.forKind("luggage").getSharedChecklist()).rejects.toThrow("MEMBER_CHANGED");
     await repository.stop();
-    expect(CoreSnapshots.prototype.deleteResource).toHaveBeenCalledTimes(2);
+    expect(CoreSnapshots.prototype.deleteResource).toHaveBeenCalledTimes(3);
   });
   it("reads only the selected member snapshot offline and refuses writes", async () => {
     snapshots();

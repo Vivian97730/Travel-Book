@@ -12,6 +12,7 @@ function MemberAvatar({ role }: { role: TripMember["roleKey"] }) {
     <path d="M5 29c0-7 5-10 11-10s11 3 11 10" fill="currentColor" opacity=".22" />
     <circle cx="16" cy="12" r="6" stroke="currentColor" strokeWidth="1.5" />
     {role === "mother" ? <path d="M10 10c-2 5-3 8-2 10m14-10c2 5 3 8 2 10" stroke="currentColor" strokeWidth="2" />
+      : role === "self" ? <path d="M10 11c0-5 12-7 12 1l2 7-4-1m-10-7-2 7 4-1m0-11c1 3 4 4 8 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       : role === "father" ? <path d="M10 12h5m2 0h5m-7 0h2" stroke="currentColor" strokeWidth="2" />
       : <path d="m11 7 4-3 2 3 4-1" stroke="currentColor" strokeWidth="2" />}
   </svg>;
@@ -64,7 +65,7 @@ export function MemberSession({ tripId, token, baseUrl, online, cache, children 
 
   useEffect(() => {
     if (!online || !members || !selection) return;
-    void Promise.allSettled([selection.repository.forKind("luggage").getSharedChecklist(), selection.repository.forKind("todos").getSharedChecklist()]);
+    void Promise.allSettled((["essentials", "luggage", "todos"] as const).map((kind) => selection.repository.forKind(kind).getSharedChecklist()));
   }, [members, online, selection]);
 
   async function choose(member: TripMember) {

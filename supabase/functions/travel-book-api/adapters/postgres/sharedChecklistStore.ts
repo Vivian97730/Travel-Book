@@ -33,12 +33,12 @@ export class SupabaseSharedChecklistStore {
 
   forMember(memberId: string, kind: string) {
     return {
-      getSharedChecklist: (tripId: string) => this.call("get_trip_personal_checklist", {
-        p_trip_id: tripId, p_member_id: memberId, p_kind: kind,
+      getSharedChecklist: (tripId: string) => this.call(kind === "essentials" ? "get_trip_member_essentials" : "get_trip_personal_checklist", {
+        p_trip_id: tripId, p_member_id: memberId, ...(kind === "essentials" ? {} : { p_kind: kind }),
       }),
       mutateSharedChecklist: async (tripId: string, mutation: SharedChecklistMutation, key: string) => {
-        const result = await this.call("mutate_trip_personal_checklist", {
-          p_trip_id: tripId, p_member_id: memberId, p_kind: kind,
+        const result = await this.call(kind === "essentials" ? "mutate_trip_member_essentials" : "mutate_trip_personal_checklist", {
+          p_trip_id: tripId, p_member_id: memberId, ...(kind === "essentials" ? {} : { p_kind: kind }),
           p_action: mutation.action, p_id: mutation.action === "create" ? null : mutation.id,
           p_input: mutation.action === "delete" ? null : mutation.input,
           p_expected_version: mutation.action === "create" ? 0 : mutation.expectedVersion,
