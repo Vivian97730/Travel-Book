@@ -54,6 +54,7 @@ export function PlaceSearchField({ initialQuery, city, place, search, onSelect }
       <p>{place ? `已選地點：${place.name}` : "尚未選取地點，儲存後不會新增地圖標記。"}</p>
       {place && <button className="secondary-button" type="button" onClick={() => onSelect(null)}>移除地點</button>}
     </div>
+    <a className="place-search-help" href="https://www.geoapify.com/" target="_blank" rel="noreferrer">Powered by Geoapify</a>
     <a className="place-search-help" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">搜尋圖資 © OpenStreetMap contributors</a>
   </fieldset>;
 }

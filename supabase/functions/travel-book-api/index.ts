@@ -15,7 +15,7 @@ import { SupabaseStaysStore } from "./adapters/postgres/staysStore.ts";
 
 const config = readRuntimeConfig((name) => Deno.env.get(name));
 const dependencies = {
-  placeSearch: new PlaceSearchService(new SupabasePlaceSearchCache(config.supabaseUrl, config.secretKey), Deno.env.get("GEOCODING_SEARCH_URL") || undefined, fetch, readPlaceSearchProvider(Deno.env.get("GEOCODING_PROVIDER"))),
+  placeSearch: new PlaceSearchService(new SupabasePlaceSearchCache(config.supabaseUrl, config.secretKey), Deno.env.get("GEOCODING_SEARCH_URL") || undefined, fetch, readPlaceSearchProvider(Deno.env.get("GEOCODING_PROVIDER")), Deno.env.get("GEOAPIFY_API_KEY")),
   memberStore: new SupabaseSharedChecklistStore(config.supabaseUrl, config.secretKey),
   sharedChecklistStore: new SupabaseSharedChecklistStore(config.supabaseUrl, config.secretKey),
   ratesService: new RatesService(new SupabaseRateCache(config.supabaseUrl, config.secretKey), fetchOfficialRate),

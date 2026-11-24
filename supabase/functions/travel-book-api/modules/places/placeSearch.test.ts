@@ -91,3 +91,39 @@ it("identifies this specific app and keeps provider rejection content out of saf
   expect(JSON.stringify(failure)).not.toContain("private query");
   expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({"User-Agent":expect.stringContaining("Vivian97730TravelBook/1.0"),Referer:"https://vivian97730.github.io/Travel-Book/"});
 });
+
+it("uses Geoapify only at the approved host, isolates cache and validates coordinates", async () => {
+  const { cache } = setup();
+  const fetcher = vi.fn<typeof fetch>(async () => Response.json({ results: [
+    { name: "Stephansdom", formatted: "Stephansplatz, Wien, Austria", lat: 48.208, lon: 16.373 },
+    { address_line1: "Graben", formatted: "Graben, Wien", lat: 48.209, lon: 16.37 },
+    { name: "Invalid", formatted: "Invalid", lat: 91, lon: 0 },
+  ] }));
+  const service = new PlaceSearchService(cache, undefined, fetcher, "geoapify", "test-only-key");
+  const result = await service.search("private-trip", { query: "Stephansdom", city: "Wien" });
+  expect(result).toMatchObject([{ name: "Stephansdom", latitude: 48.208, longitude: 16.373, mapUrl: "https://www.openstreetmap.org/?mlat=48.208&mlon=16.373" }, { name: "Graben" }]);
+  const url = new URL(String(fetcher.mock.calls[0][0]));
+  expect(url.origin).toBe("https://api.geoapify.com");
+  expect(Object.fromEntries(url.searchParams)).toEqual({ text: "Stephansdom, Wien", format: "json", limit: "5", lang: "en", bias: "countrycode:none", apiKey: "test-only-key" });
+  expect(cache.claim).toHaveBeenCalledWith("private-trip", "geoapify:stephansdom, wien", expect.any(String));
+  expect(JSON.stringify(result)).not.toContain("test-only-key");
+  expect(readPlaceSearchProvider("geoapify")).toBe("geoapify");
+  expect(() => new PlaceSearchService(cache, undefined, fetcher, "geoapify")).toThrow("PLACE_SEARCH_CONFIGURATION_INVALID");
+  expect(() => new PlaceSearchService(cache, "https://other.test/search", fetcher, "geoapify", "test-only-key")).toThrow("PLACE_SEARCH_CONFIGURATION_INVALID");
+});
+it.each([{ results: [] }, { error: "bad" }, { results: [{ name: "Bad", formatted: "Bad", lat: null, lon: 0 }] }])("handles empty and malformed Geoapify responses safely", async (body) => {
+  const { cache } = setup();
+  const service = new PlaceSearchService(cache, undefined, async () => Response.json(body), "geoapify", "test-only-key");
+  if ("results" in body && body.results?.length === 0) {
+    await expect(service.search("trip", { query: "Church", city: "Wien" })).resolves.toEqual([]);
+  } else {
+    await expect(service.search("trip", { query: "Church", city: "Wien" })).rejects.toMatchObject({ phase: "provider" });
+    expect(cache.finish).toHaveBeenCalledWith("trip", "geoapify:church, wien", expect.any(String), null);
+  }
+});
+it("does not expose a Geoapify key echoed by errors or redirects", async () => {
+  const { cache } = setup();
+  const service = new PlaceSearchService(cache, undefined, async () => { throw new Error("https://api.geoapify.com/?apiKey=test-only-key"); }, "geoapify", "test-only-key");
+  try { await service.search("trip", { query: "Church", city: "Wien" }); expect.fail(); }
+  catch (error) { expect(String(error)).toBe("Error: PLACE_SEARCH_UNAVAILABLE"); expect(JSON.stringify(error)).not.toContain("test-only-key"); }
+});

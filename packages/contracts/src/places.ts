@@ -25,7 +25,7 @@ export function parsePlaceSearchCandidates(input: unknown): ParseResult<PlaceSea
     || typeof v.address !== "string" || v.address.length > 1000
     || typeof v.latitude !== "number" || !Number.isFinite(v.latitude) || Math.abs(v.latitude) > 90
     || typeof v.longitude !== "number" || !Number.isFinite(v.longitude) || Math.abs(v.longitude) > 180
-    || typeof v.mapUrl !== "string" || !/^https:\/\/www\.openstreetmap\.org\/(node|way|relation)\/\d+$/.test(v.mapUrl))) {
+    || typeof v.mapUrl !== "string" || !/^https:\/\/www\.openstreetmap\.org\/(?:(node|way|relation)\/\d+|\?mlat=-?\d+(?:\.\d+)?&mlon=-?\d+(?:\.\d+)?)$/.test(v.mapUrl))) {
     return { ok: false, issues: [{ path: "places", message: "地點搜尋結果格式不正確。" }] };
   }
   return { ok: true, value: input as PlaceSearchCandidate[] };

@@ -9,14 +9,24 @@ export interface PlaceSearchCache {
   finish(tripId: string, key: string, lease: string, candidates: PlaceSearchCandidate[] | null): Promise<void>;
 }
 
-export type PlaceSearchProvider = "nominatim" | "photon";
+export type PlaceSearchProvider = "nominatim" | "photon" | "geoapify";
 export function readPlaceSearchProvider(value: string | undefined): PlaceSearchProvider {
   if (!value || value === "nominatim") return "nominatim";
-  if (value === "photon") return "photon";
+  if (value === "photon" || value === "geoapify") return value;
   throw new Error("PLACE_SEARCH_CONFIGURATION_INVALID");
 }
 
 function providerRows(body: unknown, provider: PlaceSearchProvider): unknown[] {
+  if (provider === "geoapify") {
+    if (!isRecord(body) || !Array.isArray(body.results) || body.results.length > 5) throw new Error("PLACE_SEARCH_INVALID_RESPONSE");
+    return body.results.map((p) => {
+      if (!isRecord(p) || typeof p.lat !== "number" || typeof p.lon !== "number"
+        || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return null;
+      return { name: p.name || p.address_line1, display_name: p.formatted,
+        lat: String(p.lat), lon: String(p.lon),
+        map_url: `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}` };
+    });
+  }
   if (provider === "nominatim") {
     if (!Array.isArray(body) || body.length > 5) throw new Error("PLACE_SEARCH_INVALID_RESPONSE");
     return body;
@@ -39,15 +49,16 @@ function providerRows(body: unknown, provider: PlaceSearchProvider): unknown[] {
 export class PlaceSearchService {
   private readonly endpoint: string;
   constructor(private readonly cache: PlaceSearchCache, endpoint: string | undefined = undefined,
-    private readonly fetcher: typeof fetch = fetch, private readonly provider: PlaceSearchProvider = "nominatim") {
-    this.endpoint = endpoint ?? (provider === "photon" ? "https://photon.komoot.io/api/" : "https://nominatim.openstreetmap.org/search");
+    private readonly fetcher: typeof fetch = fetch, private readonly provider: PlaceSearchProvider = "nominatim", private readonly apiKey?: string) {
+    this.endpoint = endpoint ?? (provider === "geoapify" ? "https://api.geoapify.com/v1/geocode/search" : provider === "photon" ? "https://photon.komoot.io/api/" : "https://nominatim.openstreetmap.org/search");
+    if (provider === "geoapify" && (!apiKey?.trim() || this.endpoint !== "https://api.geoapify.com/v1/geocode/search")) throw new Error("PLACE_SEARCH_CONFIGURATION_INVALID");
     const url = new URL(this.endpoint);
     if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) throw new Error("PLACE_SEARCH_CONFIGURATION_INVALID");
   }
 
   async search(tripId: string, input: PlaceSearchRequest): Promise<PlaceSearchCandidate[]> {
     const query = `${input.query.trim().replace(/\s+/g, " ")}, ${input.city.trim().replace(/\s+/g, " ")}`;
-    const key = query.toLowerCase();
+    const key = this.provider === "geoapify" ? `geoapify:${query.toLowerCase()}` : query.toLowerCase();
     const lease = crypto.randomUUID();
     const claim = await this.cache.claim(tripId, key, lease);
     if (claim.status === "cached") {
@@ -59,7 +70,9 @@ export class PlaceSearchService {
     let candidates: PlaceSearchCandidate[] | null = null;
     try {
       const url = new URL(this.endpoint);
-      url.search = new URLSearchParams(this.provider === "photon"
+      url.search = new URLSearchParams(this.provider === "geoapify"
+        ? { text: query, format: "json", limit: "5", lang: "en", bias: "countrycode:none", apiKey: this.apiKey! }
+        : this.provider === "photon"
         ? { q: query, limit: "5", lang: "en" }
         : { q: query, format: "jsonv2", limit: "5", "accept-language": "zh-TW,en" }).toString();
       const fetcher = this.fetcher;
@@ -82,9 +95,9 @@ export class PlaceSearchService {
       candidates = body.flatMap((row) => {
         if (!isRecord(row) || typeof row.name !== "string" || !row.name.trim() || typeof row.display_name !== "string"
           || typeof row.lat !== "string" || !row.lat.trim() || typeof row.lon !== "string" || !row.lon.trim()
-          || !["node", "way", "relation"].includes(String(row.osm_type)) || !/^\d+$/.test(String(row.osm_id))) return [];
+          || (this.provider !== "geoapify" && (!["node", "way", "relation"].includes(String(row.osm_type)) || !/^\d+$/.test(String(row.osm_id))))) return [];
         const candidate = { id: crypto.randomUUID(), name: row.name.slice(0, 160), address: row.display_name.slice(0, 1000),
-          latitude: Number(row.lat), longitude: Number(row.lon), mapUrl: `https://www.openstreetmap.org/${row.osm_type}/${row.osm_id}` };
+          latitude: Number(row.lat), longitude: Number(row.lon), mapUrl: this.provider === "geoapify" ? String(row.map_url) : `https://www.openstreetmap.org/${row.osm_type}/${row.osm_id}` };
         return parsePlaceSearchCandidates([candidate]).ok ? [candidate] : [];
       });
       if (body.length && !candidates.length) { candidates = null; throw new Error("PLACE_SEARCH_INVALID_RESPONSE"); }
