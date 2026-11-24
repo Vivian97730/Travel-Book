@@ -463,3 +463,21 @@ body {
 }
 
 .itinerary-map-route { stroke: var(--forest); }
+
+.schedule-card:not(.is-editing) .itinerary-card-actions {
+  position: relative;
+  align-self: stretch;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+.schedule-card:not(.is-editing) .itinerary-card-actions:has(.itinerary-order) {
+  min-height: 6.75rem;
+}
+.schedule-card:not(.is-editing) .itinerary-card-actions > .itinerary-order {
+  align-self: start;
+}
+.schedule-card:not(.is-editing) [data-toggle-itinerary] {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
