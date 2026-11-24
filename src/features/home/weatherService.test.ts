@@ -5,6 +5,7 @@ function successfulFetcher(countryCode: string | null, placeLabel: string) {
   return vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(async (input) => {
     if (input.startsWith("https://api.open-meteo.com/")) {
       return Response.json({
+        daily: { temperature_2m_min: [-2.6], temperature_2m_max: [8.7] },
         current: {
           temperature_2m: 6.4,
           weather_code: 2,
@@ -43,8 +44,14 @@ describe("loadCurrentWeather", () => {
 
     expect(getPosition).toHaveBeenCalledTimes(1);
     expect(fetcher).toHaveBeenCalledTimes(2);
+    const query = new URL(fetcher.mock.calls[0][0]).searchParams;
+    expect(query.get("daily")).toBe("temperature_2m_min,temperature_2m_max");
+    expect(query.get("forecast_days")).toBe("1");
+    expect(query.get("timezone")).toBe("auto");
     expect(snapshot).toMatchObject({
       temperature: 6.4,
+      temperatureMin: -2.6,
+      temperatureMax: 8.7,
       weatherCode: 2,
       placeLabel: "臺北",
       countryCode: "TW",
@@ -78,7 +85,9 @@ describe("loadCurrentWeather", () => {
     });
 
     expect(snapshot).toMatchObject({
-      placeLabel: "目前位置",
+      placeLabel: "",
+      temperatureMin: null,
+      temperatureMax: null,
       countryCode: null,
       inTaiwan: false,
       updatedAt: "2027-02-01T00:00:00.000Z",

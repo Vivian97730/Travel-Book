@@ -297,9 +297,9 @@ export function HomeSaveRecovery({ failure, busy, online, onRecover }: {
   </section>;
 }
 
-function WeatherMetric({ state, online }: { state: WeatherState; online: boolean }) {
+export function WeatherMetric({ state, online }: { state: WeatherState; online: boolean }) {
   if (!online) return <div className="hero-metric"><span>目前天氣</span><strong>離線無法更新</strong></div>;
-  if (state.status === "ready") return <div className="hero-metric"><span>目前天氣</span><strong>{state.snapshot.placeLabel} {Math.round(state.snapshot.temperature)}°C・{weatherDescription(state.snapshot.weatherCode)}</strong></div>;
+  if (state.status === "ready") return <div className="hero-metric"><span>目前天氣</span><strong>{state.snapshot.placeLabel && `${state.snapshot.placeLabel} `}{Math.round(state.snapshot.temperature)}°C・{weatherDescription(state.snapshot.weatherCode)}</strong><span>今天 {state.snapshot.temperatureMin == null ? "—" : `${Math.round(state.snapshot.temperatureMin)}°C`} / {state.snapshot.temperatureMax == null ? "—" : `${Math.round(state.snapshot.temperatureMax)}°C`}</span></div>;
   if (state.status === "error") return <div className="hero-metric"><span>目前天氣</span><strong>暫時無法取得</strong></div>;
   return <div className="hero-metric"><span>目前天氣</span><strong>正在取得⋯</strong></div>;
 }
