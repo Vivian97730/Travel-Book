@@ -21,6 +21,10 @@ interface ReverseGeocodeResponse {
 }
 
 interface OpenMeteoResponse {
+  daily?: {
+    temperature_2m_min?: (number | null)[];
+    temperature_2m_max?: (number | null)[];
+  };
   current?: {
     temperature_2m?: number;
     weather_code?: number;
@@ -73,7 +77,7 @@ export async function loadCurrentWeather({
     });
 
     const [weatherResponse, placeResponse] = await Promise.all([
-      fetcher(`https://api.open-meteo.com/v1/forecast?${query}&current=temperature_2m,weather_code&timezone=auto`),
+      fetcher(`https://api.open-meteo.com/v1/forecast?${query}&current=temperature_2m,weather_code&daily=temperature_2m_min,temperature_2m_max&forecast_days=1&timezone=auto`),
       fetcher(`https://api.bigdatacloud.net/data/reverse-geocode-client?${query}&localityLanguage=zh-TW`).catch(() => null),
     ]);
 
@@ -93,8 +97,10 @@ export async function loadCurrentWeather({
 
     return {
       temperature: current.temperature_2m,
+      temperatureMin: finiteTemperature(weather.daily?.temperature_2m_min?.[0]),
+      temperatureMax: finiteTemperature(weather.daily?.temperature_2m_max?.[0]),
       weatherCode: current.weather_code,
-      placeLabel: place.locality || place.city || place.principalSubdivision || "目前位置",
+      placeLabel: place.locality || place.city || place.principalSubdivision || "",
       countryCode: countryCode || (inTaiwan ? "TW" : null),
       inTaiwan,
       updatedAt: current.time || now().toISOString(),
@@ -113,4 +119,8 @@ export function weatherDescription(code: number): string {
   if (code <= 77 || (code >= 85 && code <= 86)) return "下雪";
   if (code >= 95) return "雷雨";
   return "天氣狀態未知";
+}
+
+function finiteTemperature(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

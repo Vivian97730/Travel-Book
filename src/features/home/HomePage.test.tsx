@@ -1,3 +1,4 @@
+import { WeatherMetric } from "./HomePage";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
@@ -96,5 +97,25 @@ describe("fact form", () => {
     expect(html).not.toContain("fact-icon");
     expect(html).toMatch(/id="fact-title"[^>]*data-dialog-initial-focus/);
     expect(html).toContain("轉接頭");
+  });
+});
+
+describe("home weather", () => {
+  it("shows today's low before the high without a fallback location label", () => {
+    const html = renderToStaticMarkup(<WeatherMetric online state={{ status: "ready", snapshot: {
+      temperature: 6.4, temperatureMin: -2.6, temperatureMax: 8.7, weatherCode: 2,
+      placeLabel: "", countryCode: null, inTaiwan: false, updatedAt: "2027-02-01T12:00", source: "Open-Meteo",
+    } }} />);
+    expect(html).toContain("今天 -3°C / 9°C");
+    expect(html).toContain("6°C・多雲");
+    expect(html).not.toContain("目前位置");
+  });
+  it("uses placeholders when daily temperatures are unavailable", () => {
+    const html = renderToStaticMarkup(<WeatherMetric online state={{ status: "ready", snapshot: {
+      temperature: 6, temperatureMin: null, temperatureMax: null, weatherCode: 2,
+      placeLabel: "維也納", countryCode: "AT", inTaiwan: false, updatedAt: "2027-02-01T12:00", source: "Open-Meteo",
+    } }} />);
+    expect(html).toContain("今天 — / —");
+    expect(html).toContain("維也納");
   });
 });

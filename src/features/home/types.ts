@@ -2,6 +2,8 @@ export type { FactIcon, FlightLeg, FlightSummary, TravelFact, TripHome } from "@
 
 export interface WeatherSnapshot {
   temperature: number;
+  temperatureMin: number | null;
+  temperatureMax: number | null;
   weatherCode: number;
   placeLabel: string;
   countryCode: string | null;
