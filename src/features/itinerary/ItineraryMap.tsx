@@ -7,6 +7,7 @@ const defaultTileSource = {
 };
 
 export interface ItineraryMapLocation {
+  /** Itinerary item ID; multiple items may refer to the same place. */
   id: string;
   name: string;
   latitude: number;
@@ -29,11 +30,18 @@ function statusMessage(status: MapStatus): string | null {
   return null;
 }
 
-export function ItineraryMap({ city, locations, online }: {
+export function ItineraryMap({ city, locations, online, selectedItem, onSelectItem }: {
   city: string;
   locations: readonly ItineraryMapLocation[];
   online: boolean;
+  selectedItem?: { id: string } | null;
+  onSelectItem?(id: string): void;
 }) {
+  const mapRef = useRef<import("leaflet").Map | null>(null);
+  const markersRef = useRef(new Map<string, import("leaflet").Marker>());
+  const onSelectItemRef = useRef(onSelectItem);
+  onSelectItemRef.current = onSelectItem;
+  const [mapRevision, setMapRevision] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<MapStatus>(() => initialStatus(online, locations));
   const tileUrl = import.meta.env.VITE_MAP_TILE_URL?.trim() || defaultTileSource.url;
@@ -65,6 +73,7 @@ export function ItineraryMap({ city, locations, online }: {
         touchZoom: true,
         zoomControl: false,
       });
+      mapRef.current = map;
       L.control.zoom({ position: "topright" }).addTo(map);
 
       const tileLayer = L.tileLayer(tileUrl, {
@@ -88,20 +97,24 @@ export function ItineraryMap({ city, locations, online }: {
           iconAnchor: [18, 18],
           iconSize: [36, 36],
         });
-        L.marker(coordinates[index], {
+        const marker = L.marker(coordinates[index], {
           alt: `${location.order}．${location.name}`,
           icon,
           keyboard: true,
           title: location.name,
         }).addTo(map!);
+        const label = document.createElement("span");
+        label.textContent = `${location.order}．${location.name}`;
+        marker.bindPopup(label);
+        marker.on("click", () => onSelectItemRef.current?.(location.id));
+        markersRef.current.set(location.id, marker);
       });
 
       if (coordinates.length > 1) {
         L.polyline(coordinates, {
-          color: "#d87867",
-          dashArray: "8 10",
+          className: "itinerary-map-route",
           lineCap: "round",
-          opacity: 0.9,
+          opacity: 1,
           weight: 4,
         }).addTo(map);
       }
@@ -114,6 +127,7 @@ export function ItineraryMap({ city, locations, online }: {
         }
       };
       fitLocations();
+      setMapRevision((revision) => revision + 1);
 
       if ("ResizeObserver" in window) {
         resizeObserver = new ResizeObserver(() => {
@@ -134,8 +148,18 @@ export function ItineraryMap({ city, locations, online }: {
       cancelAnimationFrame(resizeFrame);
       resizeObserver?.disconnect();
       map?.remove();
+      mapRef.current = null;
+      markersRef.current.clear();
     };
   }, [locations, online, tileUrl]);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+    const marker = markersRef.current.get(selectedItem.id);
+    if (!marker) return;
+    mapRef.current?.setView(marker.getLatLng(), Math.max(mapRef.current.getZoom(), 15));
+    marker.openPopup();
+  }, [selectedItem, mapRevision]);
 
   const message = statusMessage(status);
   return <div
