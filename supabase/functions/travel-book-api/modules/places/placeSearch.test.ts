@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { PlaceSearchBusy, PlaceSearchService, type PlaceSearchCache } from "./placeSearch";
+import { PlaceSearchBusy, PlaceSearchService, readPlaceSearchProvider, type PlaceSearchCache } from "./placeSearch";
 
 const candidate = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Stephansdom", address: "Wien, Austria", latitude: 48.208, longitude: 16.373, mapUrl: "https://www.openstreetmap.org/way/123" };
 function setup() {
@@ -47,4 +47,36 @@ describe("trip-scoped place search", () => {
       expect(() => new PlaceSearchService(cache, url)).toThrow("PLACE_SEARCH_CONFIGURATION_INVALID");
     }
   });
+});
+
+it("converts Photon GeoJSON lon/lat and OSM object types into verified candidates", async () => {
+  const cache: PlaceSearchCache={claim:vi.fn(async()=>({status:"claimed"})),finish:vi.fn(async()=>{})};
+  const fetcher=vi.fn<typeof fetch>(async()=>Response.json({features:[
+    {properties:{name:"Berlin",city:"Berlin",country:"Germany",osm_type:"N",osm_id:123},geometry:{type:"Point",coordinates:[13.4,52.5]}},
+    {properties:{name:"Square",street:"Public street",housenumber:"1",city:"Berlin",osm_type:"W",osm_id:124},geometry:{type:"Point",coordinates:[13.41,52.51]}},
+    {properties:{name:"District",city:"Berlin",osm_type:"R",osm_id:125},geometry:{type:"Point",coordinates:[13.42,52.52]}},
+  ]}));
+  const service=new PlaceSearchService(cache,undefined,fetcher,"photon");
+  const results=await service.search("trip",{query:"Public square",city:"Berlin"});
+  expect(results).toMatchObject([
+    {name:"Berlin",latitude:52.5,longitude:13.4,address:"Berlin, Germany",mapUrl:"https://www.openstreetmap.org/node/123"},
+    {name:"Square",mapUrl:"https://www.openstreetmap.org/way/124"},
+    {name:"District",mapUrl:"https://www.openstreetmap.org/relation/125"},
+  ]);
+  const url=new URL(String(fetcher.mock.calls[0][0]));expect(url.origin).toBe("https://photon.komoot.io");expect(url.searchParams.get("q")).toBe("Public square, Berlin");expect(url.searchParams.get("format")).toBeNull();
+});
+it.each([
+  {features:[{properties:{name:"Invalid",osm_type:"N",osm_id:123},geometry:{type:"Point",coordinates:[181,52]}}]},
+  {features:[{properties:{name:"Invalid",osm_type:"N",osm_id:123},geometry:{type:"LineString",coordinates:[13,52]}}]},
+  {features:[{properties:{name:"Invalid",osm_type:"N",osm_id:123},geometry:{type:"Point",coordinates:[null,null]}}]},
+  {error:"invalid"},
+])("rejects malformed Photon results and does not cache failures",async(body)=>{
+  const cache: PlaceSearchCache={claim:vi.fn(async()=>({status:"claimed"})),finish:vi.fn(async()=>{})};
+  const service=new PlaceSearchService(cache,undefined,async()=>Response.json(body),"photon");
+  await expect(service.search("trip",{query:"Square",city:"Berlin"})).rejects.toMatchObject({phase:"provider"});
+  expect(cache.finish).toHaveBeenCalledWith("trip","square, berlin",expect.any(String),null);
+});
+
+it("requires an explicit supported provider and keeps Nominatim as the unchanged default",()=>{
+  expect(readPlaceSearchProvider(undefined)).toBe("nominatim");expect(readPlaceSearchProvider("photon")).toBe("photon");expect(()=>readPlaceSearchProvider("unapproved")).toThrow("PLACE_SEARCH_CONFIGURATION_INVALID");
 });

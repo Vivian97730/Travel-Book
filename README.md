@@ -150,3 +150,6 @@ Prototype 的所有修改只存在記憶體，重新整理後會還原。
 預設採 Nominatim，必須遵守 [使用政策](https://operations.osmfoundation.org/policies/nominatim/)：只由使用者明確按搜尋觸發，沒有輸入即時建議；全 App 共用資料庫 lease，呼叫完成後至少隔 1.1 秒才允許下一次上游搜尋，失敗也限流。候選與空結果按旅程／正規化查詢快取 30 天，過期紀錄於下一次成功搜尋時清理。UI 顯示 OpenStreetMap 授權與公開名稱查詢提示；日期、私人憑證及旅程 ID 不送往圖資服務，搜尋內容不寫入請求 Log。
 
 部署先套用 `20261124010000_itinerary_place_search.sql`，再部署 API，最後發布前端。可透過 Edge Function 的 `GEOCODING_SEARCH_URL` 切換至 HTTPS、無網址憑證的 Nominatim 相容 `/search` 端點，不需重新發布前端。預設服務不可用時可先保存純文字行程；離線維持唯讀。未選擇地點的既有／新行程不會背景自動定位。
+
+
+若營運後端被 Nominatim 以 HTTP 403 拒絕，可在確認使用者同意新的查詢目的地後改設 `GEOCODING_PROVIDER=photon`，並移除原 `GEOCODING_SEARCH_URL` 覆寫值，或設為 `https://photon.komoot.io/api/`。Photon 採 OSM 資料，維持同樣的私有快取、限流與候選保存驗證；不自動把查詢轉送至未同意的其他服務。Photon 公共服務允許合理用量，但不保證可用性，參照 [Photon 官方使用說明](https://github.com/komoot/photon#demo-server)。此設定不需要前端改版。
