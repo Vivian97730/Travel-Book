@@ -1,4 +1,4 @@
-import { PlaceSearchService } from "./modules/places/placeSearch.ts";
+import { PlaceSearchService, readPlaceSearchProvider } from "./modules/places/placeSearch.ts";
 import { SupabasePlaceSearchCache } from "./adapters/postgres/placeSearchCache.ts";
 import { SupabaseSharedChecklistStore } from "./adapters/postgres/sharedChecklistStore.ts";
 import { SupabaseRateCache } from "./adapters/postgres/rateCache.ts";
@@ -15,7 +15,7 @@ import { SupabaseStaysStore } from "./adapters/postgres/staysStore.ts";
 
 const config = readRuntimeConfig((name) => Deno.env.get(name));
 const dependencies = {
-  placeSearch: new PlaceSearchService(new SupabasePlaceSearchCache(config.supabaseUrl, config.secretKey), Deno.env.get("GEOCODING_SEARCH_URL") || undefined),
+  placeSearch: new PlaceSearchService(new SupabasePlaceSearchCache(config.supabaseUrl, config.secretKey), Deno.env.get("GEOCODING_SEARCH_URL") || undefined, fetch, readPlaceSearchProvider(Deno.env.get("GEOCODING_PROVIDER"))),
   memberStore: new SupabaseSharedChecklistStore(config.supabaseUrl, config.secretKey),
   sharedChecklistStore: new SupabaseSharedChecklistStore(config.supabaseUrl, config.secretKey),
   ratesService: new RatesService(new SupabaseRateCache(config.supabaseUrl, config.secretKey), fetchOfficialRate),
