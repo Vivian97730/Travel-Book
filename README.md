@@ -153,3 +153,6 @@ Prototype 的所有修改只存在記憶體，重新整理後會還原。
 
 
 若營運後端被 Nominatim 以 HTTP 403 拒絕，可在確認使用者同意新的查詢目的地後改設 `GEOCODING_PROVIDER=photon`，並移除原 `GEOCODING_SEARCH_URL` 覆寫值，或設為 `https://photon.komoot.io/api/`。Photon 採 OSM 資料，維持同樣的私有快取、限流與候選保存驗證；不自動把查詢轉送至未同意的其他服務。Photon 公共服務允許合理用量，但不保證可用性，參照 [Photon 官方使用說明](https://github.com/komoot/photon#demo-server)。此設定不需要前端改版。
+
+
+公開圖資服務的 User-Agent 使用本專案專屬識別與 GitHub Issues 聯絡入口，Referer 固定為公開 App 網址，不包含私人 fragment。遵循 [Photon 維護者的應用識別說明](https://community.openstreetmap.org/t/getting-403-response-when-calling-the-api-endpoint-via-a-specific-device/141345/5)，不偽裝瀏覽器、變更來源 IP 或繞過服務封鎖。拒絕回應只記錄供應商、HTTP 狀態與固定原因分類，不保存回應內容或查詢。

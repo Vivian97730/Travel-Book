@@ -25,7 +25,7 @@ describe("trip-scoped place search", () => {
     const [url, init] = fetcher.mock.calls[0];
     expect(String(url)).not.toContain("private-trip");
     expect(new URL(String(url)).searchParams.get("q")).toBe("Stephansdom, Wien");
-    expect(init).toMatchObject({ headers: { "User-Agent": expect.stringContaining("TravelBook/"), Accept: "application/json" }, redirect: "error" });
+    expect(init).toMatchObject({ headers: { "User-Agent": expect.stringContaining("Vivian97730TravelBook/"), Accept: "application/json", Referer: "https://vivian97730.github.io/Travel-Book/" }, redirect: "error" });
     expect(cache.finish).toHaveBeenCalledWith("private-trip", "stephansdom, wien", expect.any(String), result);
   });
   it("never calls the provider without the global lease", async () => {
@@ -79,4 +79,15 @@ it.each([
 
 it("requires an explicit supported provider and keeps Nominatim as the unchanged default",()=>{
   expect(readPlaceSearchProvider(undefined)).toBe("nominatim");expect(readPlaceSearchProvider("photon")).toBe("photon");expect(()=>readPlaceSearchProvider("unapproved")).toThrow("PLACE_SEARCH_CONFIGURATION_INVALID");
+});
+
+it("identifies this specific app and keeps provider rejection content out of safe errors",async()=>{
+  const cache: PlaceSearchCache={claim:vi.fn(async()=>({status:"claimed"})),finish:vi.fn(async()=>{})};
+  const fetcher=vi.fn<typeof fetch>(async()=>new Response("Identify your User-Agent; private query echoed here",{status:403}));
+  const service=new PlaceSearchService(cache,undefined,fetcher,"photon");
+  let failure: unknown;
+  try {await service.search("trip",{query:"Church",city:"Wien"});}catch(error){failure=error;}
+  expect(failure).toMatchObject({phase:"provider",provider:"photon",status:403,reason:"identification"});
+  expect(JSON.stringify(failure)).not.toContain("private query");
+  expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({"User-Agent":expect.stringContaining("Vivian97730TravelBook/1.0"),Referer:"https://vivian97730.github.io/Travel-Book/"});
 });
