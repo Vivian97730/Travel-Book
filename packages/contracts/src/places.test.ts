@@ -12,3 +12,9 @@ it("rejects invalid coordinates, excessive results and unsafe map links", () => 
   for (const patch of [{ latitude: null }, { longitude: Infinity }, { latitude: 91 }, { mapUrl: "javascript:alert(1)" }, { name: "" }]) expect(parsePlaceSearchCandidates([{ ...candidate, ...patch }]).ok).toBe(false);
   expect(parsePlaceSearchCandidates(Array(6).fill(candidate)).ok).toBe(false);
 });
+
+it("accepts validated OSM coordinate view links without accepting arbitrary hosts", () => {
+  const candidate = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Church", address: "Wien", latitude: 48.2, longitude: 16.3, mapUrl: "https://www.openstreetmap.org/?mlat=48.2&mlon=16.3" };
+  expect(parsePlaceSearchCandidates([candidate]).ok).toBe(true);
+  for (const mapUrl of ["https://evil.test/?mlat=48.2&mlon=16.3", "https://www.openstreetmap.org/?mlat=48.2&mlon=16.3&redirect=evil"]) expect(parsePlaceSearchCandidates([{...candidate,mapUrl}]).ok).toBe(false);
+});

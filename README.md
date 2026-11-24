@@ -157,3 +157,9 @@ Prototype 的所有修改只存在記憶體，重新整理後會還原。
 
 公開圖資服務的 User-Agent 使用本專案專屬識別與 GitHub Issues 聯絡入口，Referer 固定為公開 App 網址，不包含私人 fragment。遵循 [Photon 維護者的應用識別說明](https://community.openstreetmap.org/t/getting-403-response-when-calling-the-api-endpoint-via-a-specific-device/141345/5)，不偽裝瀏覽器、變更來源 IP 或繞過服務封鎖。拒絕回應只記錄供應商、HTTP 狀態與固定原因分類，不保存回應內容或查詢。
 必備清單進度存於 `member_essential_progress`，使用行程、成員與項目複合鍵；三種清單都由角色 API 讀取，快取與離線快照依角色隔離。舊版共用勾選無法辨識操作者，因此保留原資料但不複製成任何角色的完成紀錄。角色「我」採與媽媽不同的女生短髮頭像。
+
+### Geoapify 地點搜尋
+
+經使用者同意後，將後端 Secret `GEOCODING_PROVIDER` 設為 `geoapify`、`GEOCODING_SEARCH_URL` 設為 `https://api.geoapify.com/v1/geocode/search`，並設定 `GEOAPIFY_API_KEY`。Key 只存在後端，不能設為 VITE_ 變數。為防止 Key 被送往其他主機，Geoapify 模式只接受此固定 endpoint；不自動 fallback。
+
+使用 [Geocoding API](https://apidocs.geoapify.com/docs/geocoding/forward-geocoding/) 的 JSON 結果，停用 IP 國家偏好；只傳公開地點名稱與城市。Geoapify 快取獨立於舊供應商，沿用 30 天快取、全 App lease 與限流。座標通過驗證後產生 OSM 座標檢視連結，不假造 OSM 物件 ID。前端補上 Powered by Geoapify 與既有資料來源標示；搜尋仍為選填。部署後需從正式後端確認成功，免費方案不代表可用性保證。
