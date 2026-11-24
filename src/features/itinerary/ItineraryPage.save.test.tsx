@@ -63,3 +63,11 @@ it("keeps the dialog open after failure and retries its input", async () => {
   expect(saveDayItems.mock.calls[1][1][0].title).toBe("保留輸入");
   expect(render().dialog).toBeUndefined();
 });
+
+it("sends empty notes through immediate edit saves", async () => {
+  const { render, saveDayItems } = setup();
+  render().view.onEditItem!(day.items[0]);
+  await render().dialog!.onSubmit({ ...day.items[0], note: "" });
+  expect(saveDayItems).toHaveBeenCalledWith(day.date, expect.arrayContaining([expect.objectContaining({ id: day.items[0].id, note: "" })]), day.version);
+  expect(render().dialog).toBeUndefined();
+});

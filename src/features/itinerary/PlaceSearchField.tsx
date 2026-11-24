@@ -38,7 +38,7 @@ export function PlaceSearchField({ initialQuery, city, place, search, onSelect }
   }
   return <fieldset className="itinerary-place-search">
     <legend>地點（選填）</legend>
-    <p className="place-search-help" id="place-search-help">搜尋公開地點並選取正確地址，小地圖會自動標記。只會將地點名稱與城市傳送至地理編碼服務，請勿輸入私人資料。</p>
+    <p className="place-search-help" id="place-search-help">搜尋公開地點並選取正確地址。</p>
     <div className="field-group"><label htmlFor="place-query">地點名稱</label><input className="field" id="place-query" value={query} maxLength={120} aria-describedby="place-search-help" onChange={(e) => { changed(); setQuery(e.target.value); }} /></div>
     <div className="field-group"><label htmlFor="place-city">搜尋城市</label><input className="field" id="place-city" value={searchCity} maxLength={80} onChange={(e) => { changed(); setSearchCity(e.target.value); }} /></div>
     <button type="button" className="secondary-button" disabled={busy || query.trim().length < 2 || !searchCity.trim()} onClick={runSearch}>{busy ? "搜尋中⋯" : "搜尋地點"}</button>

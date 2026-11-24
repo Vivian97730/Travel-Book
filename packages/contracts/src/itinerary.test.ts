@@ -80,7 +80,7 @@ describe("save trip day request contract", () => {
   it("rejects invalid versions, item ids, text, categories, and non-contiguous ordering", () => {
     const result = parseSaveTripDayRequest({
       expectedVersion: 0,
-      items: [{ id: "new-item", title: " ", note: "", category: "other", sortOrder: 2 }],
+      items: [{ id: "new-item", title: " ", note: null, category: "other", sortOrder: 2 }],
     });
 
     expect(result).toMatchObject({
@@ -89,7 +89,7 @@ describe("save trip day request contract", () => {
         { path: "expectedVersion", message: "預期版本必須是正整數。" },
         { path: "items[0].id", message: "行程項目 ID 格式不正確。" },
         { path: "items[0].title", message: "行程名稱不得為空。" },
-        { path: "items[0].note", message: "行程內容不得為空。" },
+        { path: "items[0].note", message: "行程內容格式不正確。" },
         { path: "items[0].category", message: "行程分類不支援。" },
         { path: "items[0].sortOrder", message: "行程排序必須從 0 連續編號。" },
       ]),
@@ -104,5 +104,15 @@ it("accepts selected place IDs or removal, and rejects arbitrary coordinate obje
   }
   for (const placeId of ["unverified-place", { latitude: 10, longitude: 20 }]) {
     expect(parseSaveTripDayRequest({ expectedVersion: 1, items: [{ ...item, placeId }] }).ok).toBe(false);
+  }
+});
+
+it("accepts empty notes in both save requests and day responses", () => {
+  const item = { ...validDay.items[0], note: "" };
+  expect(parseTripDay({ ...validDay, items: [item] }).ok).toBe(true);
+  expect(parseSaveTripDayRequest({ expectedVersion: 1, items: [item] }).ok).toBe(true);
+  for (const note of [null, undefined, 123]) {
+    expect(parseSaveTripDayRequest({ expectedVersion: 1, items: [{ ...item, note }] }).ok).toBe(false);
+    expect(parseTripDay({ ...validDay, items: [{ ...item, note }] }).ok).toBe(false);
   }
 });
