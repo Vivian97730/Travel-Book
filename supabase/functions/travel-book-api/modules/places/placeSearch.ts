@@ -1,6 +1,9 @@
 import { isRecord, parsePlaceSearchCandidates, type PlaceSearchCandidate, type PlaceSearchRequest } from "../../../../../packages/contracts/src/index.ts";
 
 export class PlaceSearchBusy extends Error {}
+export class PlaceSearchFailure extends Error {
+  constructor(readonly phase: "provider" | "cache", readonly status?: number) { super("PLACE_SEARCH_UNAVAILABLE"); }
+}
 export interface PlaceSearchCache {
   claim(tripId: string, key: string, lease: string): Promise<{ status: "cached"; candidates: PlaceSearchCandidate[] } | { status: "claimed" | "busy" }>;
   finish(tripId: string, key: string, lease: string, candidates: PlaceSearchCandidate[] | null): Promise<void>;
@@ -33,7 +36,7 @@ export class PlaceSearchService {
         signal: AbortSignal.timeout(8000), redirect: "error",
       });
       if (response.status === 429) throw new PlaceSearchBusy();
-      if (!response.ok) throw new Error("PLACE_SEARCH_UNAVAILABLE");
+      if (!response.ok) throw new PlaceSearchFailure("provider", response.status);
       const body: unknown = await response.json();
       if (!Array.isArray(body) || body.length > 5) throw new Error("PLACE_SEARCH_INVALID_RESPONSE");
       candidates = body.flatMap((row) => {
@@ -46,6 +49,9 @@ export class PlaceSearchService {
       });
       if (body.length && !candidates.length) { candidates = null; throw new Error("PLACE_SEARCH_INVALID_RESPONSE"); }
       return candidates;
+    } catch (error) {
+      if (error instanceof PlaceSearchBusy || error instanceof PlaceSearchFailure) throw error;
+      throw new PlaceSearchFailure("provider");
     } finally {
       // A durable, application-wide lease serializes providers across Edge isolates.
       // Failed calls are never cached; a cooldown still applies after completion.
