@@ -83,7 +83,7 @@ function validateItem(value: unknown, path: string, issues: ValidationIssue[]): 
   }
   requireText(value.id, `${path}.id`, "行程項目 ID", issues);
   requireText(value.title, `${path}.title`, "行程名稱", issues);
-  requireText(value.note, `${path}.note`, "行程內容", issues);
+  if (typeof value.note !== "string") issues.push({ path: `${path}.note`, message: "行程內容格式不正確。" });
   if (typeof value.category !== "string" || !itineraryCategories.includes(value.category as ItineraryCategory)) {
     issues.push({ path: `${path}.category`, message: "行程分類不支援。" });
   }
@@ -144,7 +144,7 @@ export function parseSaveTripDayRequest(input: unknown): ParseResult<SaveTripDay
         issues.push({ path: `${path}.placeId`, message: "地點 ID 格式不正確。" });
       }
       requireText(item.title, `${path}.title`, "行程名稱", issues);
-      requireText(item.note, `${path}.note`, "行程內容", issues);
+      if (typeof item.note !== "string") issues.push({ path: `${path}.note`, message: "行程內容格式不正確。" });
       if (typeof item.category !== "string" || !itineraryCategories.includes(item.category as ItineraryCategory)) {
         issues.push({ path: `${path}.category`, message: "行程分類不支援。" });
       }

@@ -163,3 +163,9 @@ Prototype 的所有修改只存在記憶體，重新整理後會還原。
 經使用者同意後，將後端 Secret `GEOCODING_PROVIDER` 設為 `geoapify`、`GEOCODING_SEARCH_URL` 設為 `https://api.geoapify.com/v1/geocode/search`，並設定 `GEOAPIFY_API_KEY`。Key 只存在後端，不能設為 VITE_ 變數。為防止 Key 被送往其他主機，Geoapify 模式只接受此固定 endpoint；不自動 fallback。
 
 使用 [Geocoding API](https://apidocs.geoapify.com/docs/geocoding/forward-geocoding/) 的 JSON 結果，停用 IP 國家偏好；只傳公開地點名稱與城市。Geoapify 快取獨立於舊供應商，沿用 30 天快取、全 App lease 與限流。座標通過驗證後產生 OSM 座標檢視連結，不假造 OSM 物件 ID。前端補上 Powered by Geoapify 與既有資料來源標示；搜尋仍為選填。部署後需從正式後端確認成功，免費方案不代表可用性保證。
+
+### 行程空白內容與舊版搜尋介面
+
+行程名稱仍為必填，內容可留白；前後端契約接受空字串，資料庫保留 `NOT NULL` 與原本 500 字上限。部署時先套用 `20261125010000_allow_empty_itinerary_notes.sql`，再部署 API 與前端。
+
+Geoapify 回傳的 OpenStreetMap 座標連結，舊版前端僅接受 OSM 物件連結，可能在搜尋 HTTP 200 時顯示搜尋無法使用。新版契約已支援兩種格式。若手機仍沒有顯示「Powered by Geoapify」，先保存編輯，再完全關閉 Travel Book 主畫面 App 與所有 Travel Book 瀏覽器分頁，重新開啟讓已下載的新版啟用；保留私人連結及存取資料。更新不會自動重載尚未保存的草稿。

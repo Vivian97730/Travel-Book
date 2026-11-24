@@ -1,0 +1,11 @@
+begin;
+set local search_path=public,extensions,pg_catalog;
+select plan(6);
+select lives_ok($$select public.save_trip_day_items('11111111-1111-4111-8111-111111111111','2027-02-06','[{"id":"dededede-dede-4ded-8ded-dededededede","title":"Optional note","note":"","category":"sight","sortOrder":0}]',1,'edededed-eded-4ede-8ede-edededededed')$$,'new item may have an empty note without searching');
+select is(public.get_trip_day('11111111-1111-4111-8111-111111111111','2027-02-06')->'items'->0->>'note','','empty note survives readback');
+select lives_ok($$select public.save_trip_day_items('11111111-1111-4111-8111-111111111111','2027-02-06','[{"id":"dededede-dede-4ded-8ded-dededededede","title":"Updated","note":"   ","category":"sight","sortOrder":0}]',2,'fefefefe-fefe-4fef-8fef-fefefefefefe')$$,'edit may clear notes to whitespace');
+select is(public.get_trip_day('11111111-1111-4111-8111-111111111111','2027-02-06')->'items'->0->>'note','','whitespace is normalized to empty');
+select throws_ok($$update app_private.itinerary_items set notes=null where id='dededede-dede-4ded-8ded-dededededede'$$,'23502',null,'notes remain NOT NULL');
+select throws_ok($$update app_private.itinerary_items set notes=repeat('x',501) where id='dededede-dede-4ded-8ded-dededededede'$$,'23514',null,'existing storage length limit is preserved');
+select * from finish();
+rollback;

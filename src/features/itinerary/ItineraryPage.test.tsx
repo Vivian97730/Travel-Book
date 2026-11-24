@@ -240,3 +240,9 @@ describe("itinerary dialog persistence feedback", () => {
     expect(html).not.toContain('type="submit"');
   });
 });
+
+it("allows blank dialog notes and keeps only the requested place help", () => {
+  const html = renderToStaticMarkup(<ItineraryItemFormDialog item={null} city="維也納" searchPlaces={async () => []} onCancel={() => undefined} onSubmit={() => undefined} />);
+  expect(html.match(/<textarea[^>]+name="note"[^>]*>/)?.[0]).not.toContain("required");
+  expect(html).toContain('id="place-search-help">搜尋公開地點並選取正確地址。</p>');
+});
