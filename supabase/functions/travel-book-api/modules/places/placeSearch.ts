@@ -2,7 +2,7 @@ import { isRecord, parsePlaceSearchCandidates, type PlaceSearchCandidate, type P
 
 export class PlaceSearchBusy extends Error {}
 export class PlaceSearchFailure extends Error {
-  constructor(readonly phase: "provider" | "cache", readonly status?: number) { super("PLACE_SEARCH_UNAVAILABLE"); }
+  constructor(readonly phase: "provider" | "cache", readonly status?: number, readonly provider?: PlaceSearchProvider, readonly reason?: "identification" | "rate_limit" | "blocked" | "forbidden") { super("PLACE_SEARCH_UNAVAILABLE"); }
 }
 export interface PlaceSearchCache {
   claim(tripId: string, key: string, lease: string): Promise<{ status: "cached"; candidates: PlaceSearchCandidate[] } | { status: "claimed" | "busy" }>;
@@ -64,11 +64,20 @@ export class PlaceSearchService {
         : { q: query, format: "jsonv2", limit: "5", "accept-language": "zh-TW,en" }).toString();
       const fetcher = this.fetcher;
       const response = await fetcher(url, {
-        headers: { "User-Agent": "TravelBook/1.0 (https://github.com/Vivian97730/Travel-Book)", Accept: "application/json" },
+        headers: { "User-Agent": "Vivian97730TravelBook/1.0 (+https://github.com/Vivian97730/Travel-Book; contact=https://github.com/Vivian97730/Travel-Book/issues)",
+          Referer: "https://vivian97730.github.io/Travel-Book/", Accept: "application/json" },
         signal: AbortSignal.timeout(8000), redirect: "error",
       });
       if (response.status === 429) throw new PlaceSearchBusy();
-      if (!response.ok) throw new PlaceSearchFailure("provider", response.status);
+      if (!response.ok) {
+        // Classify only fixed public policy signals; never retain echoed queries,
+        // response bodies, IP addresses, URLs or credentials in errors/logs.
+        const text = (await response.text()).slice(0, 4096).toLowerCase();
+        const reason = /user.agent|identif/.test(text) ? "identification"
+          : /rate.limit|too many/.test(text) ? "rate_limit"
+          : /block|abuse/.test(text) ? "blocked" : "forbidden";
+        throw new PlaceSearchFailure("provider", response.status, this.provider, reason);
+      }
       const body = providerRows(await response.json(), this.provider);
       candidates = body.flatMap((row) => {
         if (!isRecord(row) || typeof row.name !== "string" || !row.name.trim() || typeof row.display_name !== "string"
