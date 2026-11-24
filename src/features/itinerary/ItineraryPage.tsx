@@ -278,6 +278,18 @@ export function ItineraryDayView({
   onDeleteItem?(id: string): void;
   onReorderItem?(sourceId: string, targetId: string): void;
 }) {
+  const mapCardRef = useRef<HTMLElement>(null);
+  const itemRefs = useRef(new Map<string, HTMLElement>());
+  const [selection, setSelection] = useState<{ id: string; source: "map" | "list" } | null>(null);
+  useEffect(() => { setSelection(null); }, [day.date]);
+  useEffect(() => {
+    if (!selection) return;
+    const target = selection.source === "map" ? itemRefs.current.get(selection.id) : mapCardRef.current;
+    target?.scrollIntoView({ behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+    if (selection.source === "map") target?.focus({ preventScroll: true });
+    const timer = window.setTimeout(() => setSelection(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [selection]);
   const canEdit = editing && online;
   const [expandedItems, setExpandedItems] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -290,22 +302,21 @@ export function ItineraryDayView({
     });
   }
   const dailyStays = stays.filter((stay) => stay.startDate <= day.date && day.date < stay.endDate);
-  const mappedItems: ItineraryMapLocation[] = day.items.flatMap((item, index) => {
+  const mappedItems = useMemo<ItineraryMapLocation[]>(() => day.items.flatMap((item) => {
     if (item.place === null || item.place.latitude === null || item.place.longitude === null) return [];
     return [{
-      id: item.place.id,
+      id: item.id,
       name: item.place.name,
       latitude: item.place.latitude,
       longitude: item.place.longitude,
-      order: index + 1,
     }];
-  });
+  }).map((location, index) => ({ ...location, order: index + 1 })), [day.items]);
   return <main id="main" className="screen">
     <header className="page-heading"><div><p className="eyebrow">Daily plan</p><h1>每日行程</h1></div></header>
     <ItineraryDates dates={dates} selectedDate={selectedDate} onSelectDate={onSelectDate} />
     <div className="itinerary-grid">
-      <section className="card map-card" data-map-provider="openstreetmap" data-map-points={mappedItems.map((item) => item.name).join("|")} aria-label={`OpenStreetMap 每日地點地圖，${mappedItems.length} 個有座標地點`}>
-        <ItineraryMap key={day.date} city={day.city} locations={mappedItems} online={online} />
+      <section ref={mapCardRef} className="card map-card" data-map-provider="openstreetmap" data-map-points={mappedItems.map((item) => item.name).join("|")} aria-label={`OpenStreetMap 每日地點地圖，${mappedItems.length} 個有座標地點`}>
+        <ItineraryMap key={day.date} city={day.city} locations={mappedItems} online={online} selectedItem={selection} onSelectItem={(id) => setSelection({ id, source: "map" })} />
         <span className="map-label">{day.city}・{mappedItems.length} 個地點</span>
       </section>
       <section className="card section-card" aria-labelledby="city-title">
@@ -314,10 +325,11 @@ export function ItineraryDayView({
           {day.items.map((item, index) => {
             const expanded = !canEdit && expandedItems.has(item.id);
             const noteId = `itinerary-note-${item.id}`;
-            return <article className={`schedule-card ${canEdit ? "is-editing" : ""} ${expanded ? "is-expanded" : ""}`} data-itinerary-card={item.id} key={item.id}>
+            const mapLocation = mappedItems.find((location) => location.id === item.id);
+            return <article ref={(node) => { if (node) itemRefs.current.set(item.id, node); else itemRefs.current.delete(item.id); }} tabIndex={-1} data-map-highlighted={selection?.source === "map" && selection.id === item.id ? "true" : undefined} className={`schedule-card ${canEdit ? "is-editing" : ""} ${expanded ? "is-expanded" : ""}`} data-itinerary-card={item.id} key={item.id}>
               <span className={`timeline-icon category-${item.category}`}><Icon name={categoryIcons[item.category]} size={21} /></span>
               <div className="timeline-copy"><strong>{item.title}</strong><p id={noteId}>{item.note}</p>{item.place && <small className="itinerary-place-name">{item.place.name}</small>}<a className="navigate-link" href={googleMapsSearchUrl(item.title)} target="_blank" rel="noreferrer"><Icon name="location" size={14} />導航</a></div>
-              {canEdit ? <div className="schedule-controls"><DragHandle item={item} previousItem={day.items[index - 1]} nextItem={day.items[index + 1]} onReorder={onReorderItem} /><button className="icon-button" type="button" onClick={() => onEditItem(item)} aria-label={`修改${item.title}`}><Icon name="edit" size={17} /></button><button className="icon-button danger-icon" type="button" onClick={() => onDeleteItem(item.id)} aria-label={`刪除${item.title}`}><Icon name="trash" size={17} /></button></div> : <button className="icon-button" type="button" data-toggle-itinerary onClick={() => toggleItem(item.id)} aria-expanded={expanded} aria-controls={noteId} aria-label={`行程內容：${item.title}`}><Icon name="chevron" size={18} /></button>}
+              <div className="itinerary-card-actions">{mapLocation && <button type="button" className="itinerary-order" disabled={!online} aria-label={`行程 ${mapLocation.order}：${item.title}，在地圖上顯示`} onClick={() => setSelection({ id: item.id, source: "list" })}>{mapLocation.order}</button>}{canEdit ? <div className="schedule-controls"><DragHandle item={item} previousItem={day.items[index - 1]} nextItem={day.items[index + 1]} onReorder={onReorderItem} /><button className="icon-button" type="button" onClick={() => onEditItem(item)} aria-label={`修改${item.title}`}><Icon name="edit" size={17} /></button><button className="icon-button danger-icon" type="button" onClick={() => onDeleteItem(item.id)} aria-label={`刪除${item.title}`}><Icon name="trash" size={17} /></button></div> : <button className="icon-button" type="button" data-toggle-itinerary onClick={() => toggleItem(item.id)} aria-expanded={expanded} aria-controls={noteId} aria-label={`行程內容：${item.title}`}><Icon name="chevron" size={18} /></button>}</div>
             </article>;
           })}
           {dailyStays.map((stay) => <article className="schedule-card is-expanded" key={stay.id}>

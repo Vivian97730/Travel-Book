@@ -27,7 +27,7 @@ describe("itinerary page public behavior", () => {
     expect(html).toContain("維也納舊城散步");
     expect(html).toContain("Schloss Schonbrunn");
     expect(html).toContain('data-map-points="Schloss Schonbrunn|Cafe Central"');
-    expect(html).toContain('data-map-orders="2|3"');
+    expect(html).toContain('data-map-orders="1|2"');
     expect(html).not.toContain("開啟 Google Maps");
     expect(html).not.toContain("map-action");
     expect(html).toContain("編輯城市與行程");
@@ -147,7 +147,7 @@ describe("itinerary page public behavior", () => {
     />);
 
     expect(deletedHtml).toContain('data-map-points="Schloss Schonbrunn"');
-    expect(deletedHtml).toContain('data-map-orders="2"');
+    expect(deletedHtml).toContain('data-map-orders="1"');
     expect(deletedHtml).toContain("維也納・1 個地點");
     expect(deletedHtml).not.toContain("Cafe Central");
   });
@@ -245,4 +245,32 @@ it("allows blank dialog notes and keeps only the requested place help", () => {
   const html = renderToStaticMarkup(<ItineraryItemFormDialog item={null} city="維也納" searchPlaces={async () => []} onCancel={() => undefined} onSubmit={() => undefined} />);
   expect(html.match(/<textarea[^>]+name="note"[^>]*>/)?.[0]).not.toContain("required");
   expect(html).toContain('id="place-search-help">搜尋公開地點並選取正確地址。</p>');
+});
+
+it("numbers only mapped items consecutively after reordering, including shared places", () => {
+  const day = sampleTripDays[1];
+  const items = [day.items[2], day.items[0], { ...day.items[1], place: day.items[2].place }];
+  const html = renderToStaticMarkup(<ItineraryDayView day={{ ...day, items }} dates={[day.date]} selectedDate={day.date} onSelectDate={() => undefined} />);
+  expect(html).toContain('data-map-orders="1|2"');
+  expect(html).toContain(`行程 1：${items[0].title}，在地圖上顯示`);
+  expect(html).not.toContain(`aria-label="行程 2：${items[1].title}`);
+  expect((html.match(/class="itinerary-order"/g) ?? [])).toHaveLength(2);
+  expect(html).toContain(`行程 2：${items[2].title}，在地圖上顯示`);
+});
+
+it("renumbers when coordinates change, accepts zero coordinates and preserves offline numbers", () => {
+  const day = sampleTripDays[1];
+  const first = day.items[1];
+  const second = day.items[2];
+  for (const [items, count] of [
+    [[{ ...first, place: null }, second], 1],
+    [[{ ...first, place: { ...first.place!, latitude: 0, longitude: 0 } }, second], 2],
+    [[{ ...first, place: { ...first.place!, latitude: null } }, { ...second, place: null }], 0],
+  ] as const) {
+    const html = renderToStaticMarkup(<ItineraryDayView day={{ ...day, items: [...items] }} dates={[day.date]} selectedDate={day.date} online={false} onSelectDate={() => undefined} />);
+    expect((html.match(/class="itinerary-order"/g) ?? [])).toHaveLength(count);
+    expect((html.match(/class="itinerary-order" disabled=""/g) ?? [])).toHaveLength(count);
+    expect(html).toContain(`data-map-orders="${Array.from({ length: count }, (_, index) => index + 1).join("|")}"`);
+    expect(html).toContain("行程內容：");
+  }
 });

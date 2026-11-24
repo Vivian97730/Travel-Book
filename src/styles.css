@@ -159,7 +159,7 @@
   width: 2.25rem;
   height: 2.25rem;
   place-items: center;
-  border: 3px solid var(--card);
+  border: 0;
   border-radius: 50%;
   background: var(--forest);
   box-shadow: var(--shadow-soft);
@@ -424,3 +424,42 @@ body {
 }
 .place-search-result[aria-pressed="true"] { border-color: var(--ink); background: var(--forest-soft); }
 .place-search-selection { display: grid; gap: .5rem; overflow-wrap: anywhere; }
+
+/* Shared itinerary order links the list to its map markers. */
+.itinerary-card-actions { display: grid; justify-items: center; align-self: start; gap: 0.35rem; }
+.itinerary-order { flex: 0 0 auto; display: inline-grid; place-items: center; min-width: 1.75rem; height: 1.75rem; padding: 0 0.3rem; border: 0; border-radius: 50%; background: var(--forest); color: white; font: 700 0.8rem "DM Sans", sans-serif; cursor: pointer; }
+.itinerary-order:disabled { background: var(--line); color: var(--muted); cursor: default; opacity: 1; }
+.itinerary-order:focus-visible { outline: 3px solid var(--forest); outline-offset: 3px; }
+.schedule-card[data-map-highlighted="true"] { outline: 3px solid var(--forest); outline-offset: 2px; }
+
+.schedule-list .timeline-icon {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-width: 2px;
+  border-radius: 0.85rem;
+}
+.schedule-list .timeline-icon svg { width: 18px; height: 18px; }
+.schedule-list .schedule-card::before,
+.schedule-list .schedule-card:not(:last-child)::after {
+  left: 2.3rem;
+  background: repeating-linear-gradient(to bottom, #e5e7e9 0, #e5e7e9 5px, transparent 5px, transparent 9px);
+}
+
+@media (max-width: 719px) {
+  .schedule-list .schedule-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding-left: 2.5rem;
+  }
+  .schedule-list .timeline-icon {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .schedule-list .schedule-card::before,
+  .schedule-list .schedule-card:not(:last-child)::after {
+    left: -1px;
+  }
+}
+
+.itinerary-map-route { stroke: var(--forest); }
