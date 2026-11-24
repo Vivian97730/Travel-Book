@@ -138,11 +138,11 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
     setSaveFailure(null);
   }
 
-  async function finishEditing() {
-    if (!online || draftVersion === null) return;
+  async function finishEditing(nextItems = draftItems, keepEditing = false) {
+    if (!online || saving || draftVersion === null) return;
     setSaving(true);
     setSaveFailure(null);
-    const items: SaveTripDayItem[] = draftItems.map(({ id, title, note, category, place }, sortOrder) => ({
+    const items: SaveTripDayItem[] = nextItems.map(({ id, title, note, category, place }, sortOrder) => ({
       id,
       title,
       note,
@@ -153,8 +153,10 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
     try {
       const saved = await repository.saveDayItems(day!.date, items, draftVersion);
       setDay(saved);
-      setDraftItems([]);
-      setEditing(false);
+      setDraftVersion(saved.version);
+      setDraftItems(keepEditing ? structuredClone(saved.items) : []);
+      setEditing(keepEditing);
+      setFormItem(undefined);
     } catch (caught) {
       setSaveFailure(itinerarySaveFailureFor(caught));
     } finally {
@@ -169,6 +171,7 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
       setDay(refreshed);
       setDraftItems([]);
       setEditing(false);
+      setFormItem(undefined);
       setSaveFailure(null);
     } catch {
       setSaveFailure({
@@ -181,18 +184,11 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
     }
   }
 
-  function saveDraftItem(value: Pick<ItineraryItem, "title" | "note" | "category" | "place">) {
-    setDraftItems((current) => {
-      if (formItem) {
-        return current.map((item) => item.id === formItem.id ? { ...item, ...value } : item);
-      }
-      return [...current, {
-        id: crypto.randomUUID(),
-        ...value,
-        sortOrder: current.length,
-      }];
-    });
-    setFormItem(undefined);
+  async function saveDraftItem(value: Pick<ItineraryItem, "title" | "note" | "category" | "place">) {
+    const nextItems = formItem
+      ? draftItems.map((item) => item.id === formItem.id ? { ...item, ...value } : item)
+      : [...draftItems, { id: crypto.randomUUID(), ...value, sortOrder: draftItems.length }];
+    await finishEditing(nextItems, true);
   }
 
   function deleteDraftItem(id: string) {
@@ -225,18 +221,18 @@ export function ItineraryPage({ repository, trip, staysRepository, online = true
       editing={editing}
       saving={saving}
       onSelectDate={selectDate}
-      onToggleEditing={editing ? finishEditing : beginEditing}
+      onToggleEditing={editing ? () => finishEditing() : beginEditing}
       onAddItem={() => setFormItem(null)}
       onEditItem={setFormItem}
       onDeleteItem={deleteDraftItem}
       onReorderItem={reorderDraftItem}
     />
-    {online && saveFailure && <ItinerarySaveRecovery
+    {online && formItem === undefined && saveFailure && <ItinerarySaveRecovery
       failure={saveFailure}
       busy={saving}
-      onRecover={saveFailure.kind === "conflict" ? reloadAfterConflict : finishEditing}
+      onRecover={saveFailure.kind === "conflict" ? reloadAfterConflict : () => finishEditing()}
     />}
-    {online && formItem !== undefined && <ItineraryItemFormDialog item={formItem} city={day.city} searchPlaces={repository.searchPlaces?.bind(repository)} onCancel={() => setFormItem(undefined)} onSubmit={saveDraftItem} />}
+    {online && formItem !== undefined && <ItineraryItemFormDialog saving={saving} error={saveFailure?.message} conflict={saveFailure?.kind === "conflict"} onReload={reloadAfterConflict} item={formItem} city={day.city} searchPlaces={repository.searchPlaces?.bind(repository)} onCancel={() => { if (!saving) { setFormItem(undefined); setSaveFailure(null); } }} onSubmit={saveDraftItem} />}
   </>;
 }
 
@@ -452,7 +448,11 @@ function useDialogAccessibility(onClose: () => void) {
   return dialogRef;
 }
 
-export function ItineraryItemFormDialog({ item, city = "", searchPlaces, onCancel, onSubmit }: {
+export function ItineraryItemFormDialog({ saving = false, error, conflict = false, onReload, item, city = "", searchPlaces, onCancel, onSubmit }: {
+  saving?: boolean;
+  error?: string;
+  conflict?: boolean;
+  onReload?: () => void;
   city?: string;
   searchPlaces?: (query: string, city: string) => Promise<PlaceSearchCandidate[]>;
   item: ItineraryItem | null;
@@ -464,6 +464,7 @@ export function ItineraryItemFormDialog({ item, city = "", searchPlaces, onCance
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving || conflict) return;
     const data = new FormData(event.currentTarget);
     onSubmit({
       place,
@@ -473,7 +474,7 @@ export function ItineraryItemFormDialog({ item, city = "", searchPlaces, onCance
     });
   }
 
-  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="itinerary-edit-title"><form className="dialog-form" onSubmit={submit}><header className="dialog-head"><h2 id="itinerary-edit-title">{item ? "修改行程" : "新增行程"}</h2><button className="icon-button" type="button" onClick={onCancel} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="itinerary-title">行程名稱</label><input className="field" id="itinerary-title" name="title" required maxLength={80} defaultValue={item?.title ?? ""} data-dialog-initial-focus /></div><div className="field-group"><label htmlFor="itinerary-note">內容</label><textarea className="field" id="itinerary-note" name="note" required maxLength={300} defaultValue={item?.note ?? ""} /></div><div className="field-group"><label htmlFor="itinerary-category">類別</label><select className="field itinerary-category-field" id="itinerary-category" name="category" defaultValue={item?.category ?? "transit"}><option value="transit">交通</option><option value="sight">景點</option><option value="food">食物</option><option value="stay">住宿</option><option value="shopping">逛街</option></select></div>{searchPlaces && <PlaceSearchField initialQuery={item?.place?.name ?? item?.title ?? ""} city={city} place={place} search={searchPlaces} onSelect={setPlace} />}<div className="dialog-actions"><button className="secondary-button" type="button" onClick={onCancel}>取消</button><button className="primary-button" type="submit">儲存</button></div></form></section></div>;
+  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}><section ref={dialogRef} className="dialog react-dialog" role="dialog" aria-modal="true" aria-labelledby="itinerary-edit-title"><form className="dialog-form" onSubmit={submit} aria-busy={saving}><fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "grid", gap: 16 }}><header className="dialog-head"><h2 id="itinerary-edit-title">{item ? "修改行程" : "新增行程"}</h2><button className="icon-button" type="button" onClick={onCancel} aria-label="關閉"><Icon name="close" size={20} /></button></header><div className="field-group"><label htmlFor="itinerary-title">行程名稱</label><input className="field" id="itinerary-title" name="title" required maxLength={80} defaultValue={item?.title ?? ""} data-dialog-initial-focus /></div><div className="field-group"><label htmlFor="itinerary-note">內容</label><textarea className="field" id="itinerary-note" name="note" required maxLength={300} defaultValue={item?.note ?? ""} /></div><div className="field-group"><label htmlFor="itinerary-category">類別</label><select className="field itinerary-category-field" id="itinerary-category" name="category" defaultValue={item?.category ?? "transit"}><option value="transit">交通</option><option value="sight">景點</option><option value="food">食物</option><option value="stay">住宿</option><option value="shopping">逛街</option></select></div>{searchPlaces && <PlaceSearchField initialQuery={item?.place?.name ?? item?.title ?? ""} city={city} place={place} search={searchPlaces} onSelect={setPlace} />}{error && <p role="alert">{error}</p>}<div className="dialog-actions"><button className="secondary-button" type="button" onClick={onCancel}>取消</button>{conflict ? <button className="primary-button" type="button" onClick={onReload}>重新載入</button> : <button className="primary-button" type="submit">{saving ? "儲存中⋯" : "儲存"}</button>}</div></fieldset></form></section></div>;
 }
 
 

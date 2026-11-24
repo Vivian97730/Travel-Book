@@ -222,3 +222,21 @@ it("places overnight stays after editable items and excludes checkout day", () =
   expect(html).toContain(encodeURIComponent("今晚住宿"));
   expect(html).not.toMatch(/已退房住宿|尚未入住|拖曳今晚住宿|修改今晚住宿|刪除今晚住宿/);
 });
+
+
+describe("itinerary dialog persistence feedback", () => {
+  it("disables editing and repeated saves while the request is pending", () => {
+    const html = renderToStaticMarkup(<ItineraryItemFormDialog item={sampleTripDays[1].items[0]} saving onCancel={() => undefined} onSubmit={() => undefined} />);
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('<fieldset disabled=""');
+    expect(html).toContain("儲存中⋯");
+  });
+
+  it("shows errors inside the dialog and requires reload after a conflict", () => {
+    const html = renderToStaticMarkup(<ItineraryItemFormDialog item={sampleTripDays[1].items[0]} error="版本已更新" conflict onReload={() => undefined} onCancel={() => undefined} onSubmit={() => undefined} />);
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("版本已更新");
+    expect(html).toContain("重新載入");
+    expect(html).not.toContain('type="submit"');
+  });
+});
